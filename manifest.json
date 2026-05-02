@@ -1,0 +1,26 @@
+{
+  "id": "carbon",
+  "name": "nekazari-module-carbon",
+  "version": "0.1.0",
+  "description": "Carbon sequestration and biomass analytics for agricultural parcels. LUE-based GPP/NPP calculation with real PAR integration and DataHub timeseries federation.",
+  "author": "Nekazari Platform",
+  "module_type": "ADDON_PAID",
+  "required_plan_type": "premium",
+  "slots": ["bottom-panel", "context-panel", "dashboard-widget"],
+  "permissions": {
+    "api_access": [
+      "/api/carbon/*"
+    ],
+    "external_requests": []
+  },
+  "dependencies": {
+    "modules": ["vegetation-prime"],
+    "platform_services": ["orion-ld", "postgresql", "weather-worker"]
+  },
+  "datahub_adapter": {
+    "enabled": true,
+    "endpoint": "/api/internal/timeseries/export-arrow",
+    "source_name": "carbon",
+    "attributes": ["carbonFixationRateDaily", "co2SequesteredCumulative", "gppDaily", "nppDaily"]
+  }
+}
