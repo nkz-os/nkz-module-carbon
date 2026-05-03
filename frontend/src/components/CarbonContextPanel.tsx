@@ -5,9 +5,11 @@ import { fetchAssessment, fetchTierInfo, triggerCalculation } from '../api/carbo
 import type { CarbonAssessment, TierInfo } from '../api/carbonApi';
 import CarbonTierBadge from './CarbonTierBadge';
 import CarbonGapList from './CarbonGapList';
+import { getManagementData } from '../hooks/useCarbonState';
 
 interface CarbonContextPanelProps {
   entityId?: string;
+  managementData?: import('../api/carbonApi').ManagementData | null;
 }
 
 function useEntityId(props: CarbonContextPanelProps): string {
@@ -52,10 +54,12 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
     setCalculating(true);
     setError(null);
     try {
-      const result = await triggerCalculation(entityId);
+      const mgmt = getManagementData();
+      const result = await triggerCalculation(entityId, {
+        management: mgmt || undefined,
+      });
       setAssessment(result);
-      // Also reload tier info
-      const info = await fetchTierInfo(entityId).catch(() => null);
+      const info = await fetchTierInfo(entityId);
       if (info) setTierInfo(info);
     } catch (err) {
       setError(t('error_loading'));

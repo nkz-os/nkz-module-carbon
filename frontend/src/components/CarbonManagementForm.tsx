@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 import { saveManagement } from '../api/carbonApi';
 import type { ManagementData } from '../api/carbonApi';
+import { setManagementData } from '../hooks/useCarbonState';
 
 interface CarbonManagementFormProps {
   entityId: string;
@@ -26,13 +27,13 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
   const [residuesRemoved, setResiduesRemoved] = useState(initialData?.residues_removed || false);
   const [coverCropMonths, setCoverCropMonths] = useState(initialData?.cover_crop_months ?? 0);
   const [organicAmendments, setOrganicAmendments] = useState(
-    initialData?.organic_amendments_tcha_yr ?? 0,
+    initialData?.organic_amendments_tC_ha_yr ?? 0,
   );
   const [nFertilizerSynthetic, setNFertilizerSynthetic] = useState(
-    initialData?.n_fertilizer_synthetic_kgn_ha_yr ?? 0,
+    initialData?.n_synthetic_kgN_ha_yr ?? 0,
   );
   const [nFertilizerOrganic, setNFertilizerOrganic] = useState(
-    initialData?.n_fertilizer_organic_kgn_ha_yr ?? 0,
+    initialData?.n_organic_kgN_ha_yr ?? 0,
   );
   const [irrigated, setIrrigated] = useState(initialData?.irrigated || false);
 
@@ -45,12 +46,12 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
       if (initialData.tillage_type) setTillageType(initialData.tillage_type);
       if (initialData.residues_removed !== undefined) setResiduesRemoved(initialData.residues_removed);
       if (initialData.cover_crop_months !== undefined) setCoverCropMonths(initialData.cover_crop_months);
-      if (initialData.organic_amendments_tcha_yr !== undefined)
-        setOrganicAmendments(initialData.organic_amendments_tcha_yr);
-      if (initialData.n_fertilizer_synthetic_kgn_ha_yr !== undefined)
-        setNFertilizerSynthetic(initialData.n_fertilizer_synthetic_kgn_ha_yr);
-      if (initialData.n_fertilizer_organic_kgn_ha_yr !== undefined)
-        setNFertilizerOrganic(initialData.n_fertilizer_organic_kgn_ha_yr);
+      if (initialData.organic_amendments_tC_ha_yr !== undefined)
+        setOrganicAmendments(initialData.organic_amendments_tC_ha_yr);
+      if (initialData.n_synthetic_kgN_ha_yr !== undefined)
+        setNFertilizerSynthetic(initialData.n_synthetic_kgN_ha_yr);
+      if (initialData.n_organic_kgN_ha_yr !== undefined)
+        setNFertilizerOrganic(initialData.n_organic_kgN_ha_yr);
       if (initialData.irrigated !== undefined) setIrrigated(initialData.irrigated);
     }
   }, [initialData]);
@@ -63,12 +64,13 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
         tillage_type: tillageType,
         residues_removed: residuesRemoved,
         cover_crop_months: coverCropMonths,
-        organic_amendments_tcha_yr: organicAmendments,
-        n_fertilizer_synthetic_kgn_ha_yr: nFertilizerSynthetic,
-        n_fertilizer_organic_kgn_ha_yr: nFertilizerOrganic,
+        organic_amendments_tC_ha_yr: organicAmendments,
+        n_synthetic_kgN_ha_yr: nFertilizerSynthetic,
+        n_organic_kgN_ha_yr: nFertilizerOrganic,
         irrigated,
       };
       await saveManagement(entityId, data);
+      setManagementData(data);  // share with context-panel for calculate
       setSaveState('saved');
       onSaved?.();
       // Reset save state after 2s

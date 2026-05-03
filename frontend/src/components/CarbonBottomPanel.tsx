@@ -8,6 +8,7 @@ import CarbonGapList from './CarbonGapList';
 import CarbonProjectionChart from './CarbonProjectionChart';
 import CarbonManagementForm from './CarbonManagementForm';
 import CarbonMRVExport from './CarbonMRVExport';
+import { getManagementData } from '../hooks/useCarbonState';
 
 interface CarbonBottomPanelProps {
   entityId?: string;
@@ -71,9 +72,9 @@ const CarbonBottomPanel: React.FC<CarbonBottomPanelProps> = (props) => {
     setCalculating(true);
     setError(null);
     try {
-      const result = await triggerCalculation(entityId);
+      const mgmt = getManagementData();
+      const result = await triggerCalculation(entityId, { management: mgmt || undefined });
       setAssessment(result);
-      // Reload projection after calculation
       const proj = await fetchProjection(entityId).catch(() => null);
       if (proj) setProjection(proj);
       const info = await fetchTierInfo(entityId).catch(() => null);

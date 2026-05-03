@@ -64,10 +64,13 @@ export interface ManagementData {
   tillage_type?: string;
   residues_removed?: boolean;
   cover_crop_months?: number;
-  organic_amendments_tcha_yr?: number;
-  n_fertilizer_synthetic_kgn_ha_yr?: number;
-  n_fertilizer_organic_kgn_ha_yr?: number;
+  organic_amendments_tC_ha_yr?: number;
+  n_synthetic_kgN_ha_yr?: number;
+  n_organic_kgN_ha_yr?: number;
   irrigated?: boolean;
+  soil_lab_soc_tC_ha?: number | null;
+  soil_lab_clay_pct?: number | null;
+  harvest_export_fraction?: number;
 }
 
 export interface MRVReport {
@@ -124,11 +127,25 @@ export async function saveManagement(
   }
 }
 
-export async function triggerCalculation(entityId: string): Promise<CarbonAssessment> {
+export async function triggerCalculation(
+  entityId: string,
+  options?: {
+    crop_species?: string;
+    lat?: number;
+    lon?: number;
+    management?: ManagementData;
+  },
+): Promise<CarbonAssessment> {
   return apiFetch<CarbonAssessment>(`/parcels/${encodeURIComponent(entityId)}/calculate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ entity_id: entityId }),
+    body: JSON.stringify({
+      entity_id: entityId,
+      crop_species: options?.crop_species,
+      lat: options?.lat,
+      lon: options?.lon,
+      management: options?.management,
+    }),
   });
 }
 
