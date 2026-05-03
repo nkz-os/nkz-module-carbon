@@ -4,6 +4,9 @@ import CarbonContextPanel from './components/CarbonContextPanel';
 import CarbonDashboardWidget from './components/CarbonDashboardWidget';
 import CarbonBottomPanel from './components/CarbonBottomPanel';
 
+console.log('[nkz-module-carbon] Bundle loaded v0.1.0');
+console.log('[nkz-module-carbon] __NKZ__:', typeof (window as any).__NKZ__);
+
 const NKZ = (window as any).__NKZ__;
 
 NKZ.register({
@@ -28,3 +31,5 @@ NKZ.register({
     },
   ],
 });
+
+console.log('[nkz-module-carbon] Registered with main +', NKZ.getRegistration('carbon')?.viewerSlots?.length, 'slots');
