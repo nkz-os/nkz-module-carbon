@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: carbon-api-ingress
+  namespace: nekazari
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: nkz.robotika.cloud
+      http:
+        paths:
+          - path: /api/carbon
+            pathType: Prefix
+            backend:
+              service:
+                name: carbon-api-service
+                port:
+                  number: 8000
