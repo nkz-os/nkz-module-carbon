@@ -12,3 +12,6 @@ dist/
 htmlcov/
 .pytest_cache/
 .ruff_cache/
+
+# Agent planning/spec docs (not for public repo)
+docs/superpowers/

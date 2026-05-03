@@ -2,6 +2,7 @@
   "id": "carbon",
   "name": "nekazari-module-carbon",
   "version": "0.1.0",
+  "license": "AGPL-3.0",
   "description": "Carbon sequestration and biomass analytics for agricultural parcels. LUE-based GPP/NPP calculation with real PAR integration and DataHub timeseries federation.",
   "author": "Nekazari Platform",
   "module_type": "ADDON_PAID",
