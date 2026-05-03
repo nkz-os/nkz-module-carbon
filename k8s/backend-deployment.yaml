@@ -38,7 +38,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: postgresql-secret
-                  key: url
+                  key: postgres-url
           readinessProbe:
             httpGet:
               path: /health
