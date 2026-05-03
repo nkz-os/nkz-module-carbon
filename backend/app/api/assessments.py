@@ -49,6 +49,11 @@ from app.services.uncertainty import (
     tier1_gpp_uncertainty,
     UncertaintyResult,
 )
+from app.services.data_resolver import (
+    DataAvailability,
+    Tier as DataTier,
+    resolve_tier,
+)
 from app.services.spectral import MorphologicalType, VegetationIndex, select_index
 from app.services.solar_geometry import clear_sky_par_MJ_m2_day, doy_from_date
 from app.services.units import C_TO_CO2
@@ -323,7 +328,7 @@ async def calculate(
     lue = _get_lue(species)
     root_frac = _get_root_fraction(species)
 
-    # --- 4. Tier determination & data collection ---
+    # --- 4. Tier determination via Data Resolver ---
     management = body.management or {}
     has_management = bool(management and management.get("tillage_type"))
     has_soil_lab = bool(
@@ -339,28 +344,27 @@ async def calculate(
         )
     )
 
-    tier = 1
-    methodology = "Tier 1 — LUE (Light Use Efficiency)"
-    missing_for_next_tier = []
-
-    if has_management:
-        tier = 2
-        methodology = "Tier 2 — RothC + LUE"
-    else:
-        missing_for_next_tier.append("tillage_type")
-
-    if has_management and has_soil_lab and has_n_data:
-        tier = 3
-        methodology = "Tier 3 — RothC + GHG (N2O/NEE) + LUE"
-    else:
-        if not has_soil_lab:
-            missing_for_next_tier.append("soil_lab_soc_tC_ha")
-        if not has_n_data:
-            missing_for_next_tier.append("n_synthetic_kgN_ha_yr")
-
-    data_sources = ["solar_geometry"]
-    if vi_value is not None:
-        data_sources.append("vegetation_index")
+    # Build data availability from request and resolve tier
+    avail = DataAvailability(
+        ndvi_available=True,  # satellite VI always available via vegetation-prime
+        lai_available=False,
+        meteo_available=True,  # weather-worker always available
+        soil_available=has_soil_lab,
+        phenology_available=bool(body.crop_species),
+        management_available=has_management,
+        sensors_soil_available=bool(management.get("sensors_soil_moisture")),
+        sensors_plant_available=bool(management.get("sensors_canopy_ir")),
+        fertilization_available=has_n_data,
+    )
+    tier_result = resolve_tier(avail)
+    tier = tier_result.tier
+    methodology = {
+        DataTier.ONE: "Tier 1 — LUE (Light Use Efficiency)",
+        DataTier.TWO: "Tier 2 — RothC + LUE",
+        DataTier.THREE: "Tier 3 — RothC + GHG (N2O/NEE) + LUE",
+    }[tier_result.tier]
+    missing_for_next_tier = tier_result.missing_for_next_tier
+    data_sources = tier_result.available_sources + ["solar_geometry"]
 
     # --- 5. Run Tier 1 ---
     tier1_input = Tier1Input(
