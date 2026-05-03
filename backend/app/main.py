@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.internal import router as internal_router
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,4 @@ app.add_middleware(
 )
 
 
-@app.get("/health")
-async def health():
-    return {"status": "healthy", "module": "carbon"}
+app.include_router(internal_router)

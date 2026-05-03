@@ -28,6 +28,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["internal"])
 
+
+@router.get("/health")
+async def health():
+    return {"status": "healthy", "module": "carbon", "version": "0.1.0"}
+
+
 ARROW_MIME = "application/vnd.apache.arrow.stream"
 
 # TODO: replace with real carbon_readings table once DB schema is defined.
