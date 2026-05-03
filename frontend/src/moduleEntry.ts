@@ -32,4 +32,4 @@ NKZ.register({
   ],
 });
 
-console.log('[nkz-module-carbon] Registered with main +', NKZ.getRegistration('carbon')?.viewerSlots?.length, 'slots');
+console.log('[nkz-module-carbon] ✅ Registered — id=carbon, version=0.1.0, main page + 3 viewer slots');
