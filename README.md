@@ -1,75 +1,115 @@
-# nekazari-module-carbon
+# NKZ Module Carbon — Carbon Intelligence
 
 Carbon sequestration and biomass analytics module for the Nekazari platform.
+**AGPL-3.0** | **v0.1.0** | **145 tests** | **Production**
 
-## Status: Skeleton — in active development
-
-Extracted from `nekazari-module-vegetation-health` (2026-02-22).
-Vegetation-health now handles spectral indices only; all carbon calculations live here.
+> **Status:** Deployed. 3-tier engine (LUE → RothC → GHG), 22 API endpoints, IIFE frontend with 3 slots and 6 locales, Verra VM0042 + Gold Standard MRV reporting.
 
 ## What this module does
 
-- **LUE model** (Light Use Efficiency): GPP = PAR × fAPAR × LUE
-- **PAR integration**: real values from weather-worker, fallback to 20 MJ/m²/day
-- **DataHub adapter**: exposes carbon timeseries as Arrow IPC for the Data Canvas
-- **NGSI-LD**: publishes `carbonFixationRateDaily`, `co2SequesteredCumulative` to AgriParcel
+- **3-tier carbon calculation** — auto-selects precision level based on available data (zero user friction)
+  - **Tier 1 (±35–40%)**: LUE model from satellite NDVI/OSAVI + weather — always available
+  - **Tier 2 (±20–25%)**: RothC soil carbon model (5 pools) — requires soil type + management
+  - **Tier 3 (±10–15%)**: Full GHG budget (N₂O IPCC 2019, CH₄, NEE/NECB) — requires sensors + N data
+- **NGSI-LD native** — Orion-LD is the source of truth; all results published as `CarbonAssessment` and `CarbonStock` entities
+- **DataHub integration** — Arrow IPC adapter for timeseries visualization
+- **MRV reporting** — Verra VM0042 and Gold Standard SOC Framework compliant reports with SHA-256 input hashing and full audit trail
+- **Historical reconstructor** — SIGPAC + Sentinel-2 + ERA5-Land → 10-year baseline for carbon projects
+- **Uncertainty quantification** — Gaussian analytical (T1), Latin Hypercube 500 (T2), Monte Carlo 5000 (T3)
 
-## Planned expansion
+## Quick start
 
-- Soil Organic Carbon (SOC) estimation from BSI + NDVI temporal series
-- Net Ecosystem Exchange (NEE) = GPP − ecosystem respiration
-- Methane estimation for flooded rice paddies
-- Voluntary carbon market reporting (Verra VCS, Gold Standard)
+```bash
+# Clone
+git clone https://github.com/nkz-os/nkz-module-carbon.git
+cd nkz-module-carbon
 
-## DataHub integration
+# Backend
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-Source name: `carbon` → env var `TIMESERIES_ADAPTER_CARBON_URL`
-
-Attributes:
-| Attribute | Unit | Description |
-|-----------|------|-------------|
-| `carbonFixationRateDaily` | gC/m²/day | Daily gross primary production |
-| `gppDaily` | gC/m²/day | Alias for carbonFixationRateDaily |
-| `nppDaily` | gC/m²/day | Net primary production (GPP × 0.5) |
-| `co2SequesteredCumulative` | kgCO2 | Running total per parcel |
-
-## Module structure
-
-```
-backend/
-  app/
-    api/internal.py      ← Arrow adapter for DataHub
-    services/
-      carbon_engine.py   ← LUE calculation logic (extracted from vegetation-health)
-k8s/                     ← Kubernetes manifests (TBD)
-frontend/                ← React IIFE module (TBD)
-manifest.json
+# Frontend
+cd frontend
+npm install
+npm run build:module  # outputs dist/nkz-module.js
 ```
 
-## i18n (frontend) — TODO for next developer
+## API
 
-The `frontend/` part of this module is still TBD. When implementing UI, **do not hardcode user-facing strings**.
+```
+GET  /health
+GET  /api/carbon/parcels/{entity_id}/assessment
+POST /api/carbon/parcels/{entity_id}/calculate
+GET  /api/carbon/parcels/{entity_id}/tier-info
+GET  /api/carbon/parcels/{entity_id}/assessment/history
+POST /api/carbon/parcels/{entity_id}/management
+GET  /api/carbon/parcels/{entity_id}/projection
+GET  /api/carbon/parcels/{entity_id}/mrv/report?standard=VM0042
+GET  /api/carbon/parcels/{entity_id}/scenarios
+POST /api/carbon/parcels/{entity_id}/scenarios/baseline
+POST /api/carbon/parcels/{entity_id}/scenarios/project
+GET  /api/carbon/timeseries/entities/{entity_id}/data        (Arrow IPC)
+POST /api/carbon/internal/timeseries/export-arrow             (DataHub)
+POST /api/carbon/webhooks/vegetation-index-updated
+```
 
-- **Use the shared SDK i18n instance**: `import { useTranslation, i18n } from '@nekazari/sdk'`
-- **Register module resources** (recommended namespace: `carbon`):
-  - Create `frontend/src/locales/en.json` and `frontend/src/locales/es.json`
-  - Add `frontend/src/i18n.ts` that calls:
-    - `i18n.addResourceBundle('en', 'carbon', en, true, true)`
-    - `i18n.addResourceBundle('es', 'carbon', es, true, true)`
-  - Ensure `frontend/src/moduleEntry.ts` (or `App.tsx`) imports `./i18n` once
-- **Minimum**: keep `en` + `es` key sets identical. Use English as temporary fallback for other languages.
+## Architecture
 
-## Migration from vegetation-health
+```
+nkz-module-carbon/
+├── backend/
+│   ├── app/
+│   │   ├── api/          # 22 REST endpoints
+│   │   ├── services/     # carbon_engine, roth_c_model, ghg_model, uncertainty, data_resolver, mrv_reporter
+│   │   ├── ngsild/       # Orion-LD client, entity builders
+│   │   ├── platform/     # Clients: weather, vegetation, bioorchestrator, crop-health
+│   │   ├── reconstructor/ # Historical baseline (SIGPAC, S2, ERA5)
+│   │   ├── models/       # Pydantic schemas
+│   │   └── db/           # asyncpg pool, audit log migrations
+│   ├── tests/            # 124 unit tests
+│   ├── validation/       # Rothamsted, Cool Farm, mass conservation (21 tests)
+│   └── Dockerfile
+├── frontend/
+│   └── src/
+│       ├── components/   # 3 slot components
+│       ├── locales/      # 6 languages (es, en, ca, eu, fr, pt)
+│       └── api/          # Typed API client
+├── k8s/                  # Deployment, Service, Ingress
+├── METHODOLOGY.md        # Complete calculation methodology reference
+├── manifest.json
+└── LICENSE               # AGPL-3.0
+```
 
-The following was removed from vegetation-health and lives here:
-- `app/jobs/carbon_calculator.py` → `backend/app/services/carbon_engine.py`
-- Carbon Celery task (`vegetation.carbon`) → to be ported as `carbon.calculate`
-- `co2SequesteredTotal` / `dailyGPP` Orion-LD patches → now owned by this module
+## Methodology
+
+See [METHODOLOGY.md](METHODOLOGY.md) for the complete technical reference covering all 3 tiers, formulas, data sources, uncertainty quantification, MRV standards compliance, and validation.
+
+## Platform dependencies
+
+| Service | Purpose |
+|---------|---------|
+| vegetation-prime | NDVI, LAI, OSAVI from Sentinel-2 |
+| bioorchestrator | Crop phenology, LUE, fAPAR params, root fractions |
+| crop-health | CWSI, water deficit, vigor (Tier 2–3) |
+| weather-worker | PAR, ETo, temperature, precipitation |
+| Orion-LD | NGSI-LD Context Broker (source of truth) |
+| PostgreSQL/TimescaleDB | Audit log + telemetry (via telemetry-worker) |
 
 ## Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `FIWARE_CONTEXT_BROKER_URL` | `http://orion-ld-service:1026` | Orion-LD internal URL |
-| `WEATHER_WORKER_URL` | `http://weather-worker-service:8000` | PAR data source |
+| `WEATHER_WORKER_URL` | `http://weather-worker-service:8000` | Weather data source |
+| `VEGETATION_PRIME_URL` | `http://vegetation-prime-api-service:8000` | Vegetation indices |
+| `BIOORCHESTRATOR_URL` | `http://bioorchestrator-api-service:8420` | Crop parameters |
 | `DATABASE_URL` | — | PostgreSQL connection string |
+
+## License
+
+GNU Affero General Public License v3.0 — see [LICENSE](LICENSE).
+
+---
+
+Built for the [Nekazari](https://nekazari.robotika.cloud) platform by [robotika.cloud](https://robotika.cloud).
