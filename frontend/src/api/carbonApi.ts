@@ -1,0 +1,162 @@
+const API_BASE = '/api/carbon';
+
+export interface CarbonValue {
+  value: number;
+  unit: string;
+}
+
+export interface CarbonPools {
+  dpm_tC_ha: number;
+  rpm_tC_ha: number;
+  bio_tC_ha: number;
+  hum_tC_ha: number;
+  iom_tC_ha: number;
+  total_tC_ha: number;
+}
+
+export interface CarbonAssessment {
+  entity_id: string;
+  assessment_date: string;
+  tier: number;
+  methodology: string;
+  confidence: number;
+  confidence_interval_pct: number;
+  gpp_daily: CarbonValue;
+  npp_daily: CarbonValue;
+  co2_sequestered_daily: CarbonValue;
+  co2_sequestered_cumulative: CarbonValue;
+  agb_dry: CarbonValue;
+  bgb_dry: CarbonValue;
+  soil_carbon_delta: CarbonValue | null;
+  carbon_stock_total: CarbonValue | null;
+  pools: CarbonPools | null;
+  co2eq_net_daily: CarbonValue | null;
+  co2eq_net_cumulative: CarbonValue | null;
+  gwp_standard: string;
+  missing_for_next_tier: string[];
+  data_sources: string[];
+  data_provenance: Record<string, string>;
+}
+
+export interface GapItem {
+  source: string;
+  missing: boolean;
+  action: string;
+  auto_fill: string | null;
+}
+
+export interface TierInfo {
+  current_tier: number;
+  confidence: number;
+  available_data: string[];
+  gaps: GapItem[];
+}
+
+export interface ProjectionData {
+  entity_id: string;
+  projection_years: number;
+  baseline_soc: number[];
+  project_soc: number[];
+  annual_delta_tC_ha_yr: number[];
+}
+
+export interface ManagementData {
+  tillage_type?: string;
+  residues_removed?: boolean;
+  cover_crop_months?: number;
+  organic_amendments_tcha_yr?: number;
+  n_fertilizer_synthetic_kgn_ha_yr?: number;
+  n_fertilizer_organic_kgn_ha_yr?: number;
+  irrigated?: boolean;
+}
+
+export interface MRVReport {
+  standard: string;
+  generated_at: string;
+  entity_id: string;
+  tier: number;
+  methodology: string;
+  net_emission_reductions: number;
+  verified_credits: number;
+  buffer_pool: number;
+  crediting_period_start: string;
+  crediting_period_end: string;
+  leakage: number;
+  uncertainty_deduction: number;
+}
+
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    credentials: 'include',
+    ...options,
+    headers: {
+      ...options?.headers,
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`API error ${res.status}: ${body || res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function fetchAssessment(entityId: string): Promise<CarbonAssessment> {
+  return apiFetch<CarbonAssessment>(`/parcels/${encodeURIComponent(entityId)}/assessment`);
+}
+
+export async function fetchTierInfo(entityId: string): Promise<TierInfo> {
+  return apiFetch<TierInfo>(`/parcels/${encodeURIComponent(entityId)}/tier-info`);
+}
+
+export async function saveManagement(
+  entityId: string,
+  data: ManagementData,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/parcels/${encodeURIComponent(entityId)}/management`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Management save failed: ${res.status} ${body}`);
+  }
+}
+
+export async function triggerCalculation(entityId: string): Promise<CarbonAssessment> {
+  return apiFetch<CarbonAssessment>(`/parcels/${encodeURIComponent(entityId)}/calculate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ entity_id: entityId }),
+  });
+}
+
+export async function fetchProjection(entityId: string): Promise<ProjectionData> {
+  return apiFetch<ProjectionData>(`/parcels/${encodeURIComponent(entityId)}/projection`);
+}
+
+export async function fetchMRVReport(
+  entityId: string,
+  standard: string = 'VM0042',
+): Promise<MRVReport> {
+  return apiFetch<MRVReport>(
+    `/parcels/${encodeURIComponent(entityId)}/mrv/report?standard=${encodeURIComponent(standard)}`,
+  );
+}
+
+export async function downloadMRVReport(
+  entityId: string,
+  standard: string = 'VM0042',
+): Promise<void> {
+  const report = await fetchMRVReport(entityId, standard);
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `carbon-mrv-${standard}-${entityId}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
