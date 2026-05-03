@@ -4,7 +4,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.internal import router as internal_router
+from app.api import (
+    internal_router,
+    assessments_router,
+    management_router,
+    scenarios_router,
+    timeseries_router,
+    webhooks_router,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,5 +38,12 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "NGSILD-Tenant"],
 )
 
-
+# Internal / health
 app.include_router(internal_router)
+
+# Core carbon endpoints
+app.include_router(assessments_router)
+app.include_router(management_router)
+app.include_router(scenarios_router)
+app.include_router(timeseries_router)
+app.include_router(webhooks_router)
