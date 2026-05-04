@@ -28,7 +28,10 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
   const [calculating, setCalculating] = useState(false);
 
   const loadData = useCallback(async () => {
-    if (!entityId) return;
+    if (!entityId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
