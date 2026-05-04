@@ -14,7 +14,7 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
 from app.models.schemas import (
     CalculateRequest,
@@ -122,11 +122,41 @@ def _get_fapar_params(species: str) -> tuple[float, float, str] | None:
     return FAPAR_PARAMS.get(species.lower())
 
 
-def _get_tenant_id(ngsild_tenant: str = Header(default="", alias="NGSILD-Tenant")) -> str:
-    """Extract tenant ID from NGSILD-Tenant header."""
-    if not ngsild_tenant:
-        raise HTTPException(status_code=400, detail="NGSILD-Tenant header is required")
-    return ngsild_tenant
+def _get_tenant_id(
+    request: Request,
+    ngsild_tenant: str = Header(default="", alias="NGSILD-Tenant"),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+) -> str:
+    """Extract tenant ID from NGSILD-Tenant header, JWT, or nkz_token cookie."""
+    import base64, json
+
+    if ngsild_tenant:
+        return ngsild_tenant
+
+    # Try Bearer token from Authorization header
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1]
+
+    # Try nkz_token cookie (httpOnly, set by api-gateway on login)
+    if not token:
+        token = request.cookies.get("nkz_token")
+
+    if token:
+        try:
+            payload_b64 = token.split(".")[1]
+            payload_b64 += "=" * (4 - len(payload_b64) % 4)
+            payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+            tenant_id = payload.get("tenant_id") or payload.get("tenant")
+            if tenant_id:
+                return str(tenant_id)
+        except Exception:
+            pass
+
+    raise HTTPException(
+        status_code=400,
+        detail="NGSILD-Tenant header is required, or a valid JWT with tenant_id claim",
+    )
 
 
 def _build_assessment_response(
