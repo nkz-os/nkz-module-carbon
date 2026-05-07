@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.services.spectral import MorphologicalType, select_index
+
 logger = logging.getLogger(__name__)
 
 VEGETATION_PRIME_URL = os.getenv(
@@ -52,3 +54,38 @@ async def fetch_latest_indices(
         except Exception as exc:
             logger.warning("Vegetation index fetch failed for %s: %s", entity_id, exc)
             return []
+
+
+async def resolve_vi_for_parcel(
+    entity_id: str,
+    tenant_id: str,
+    species: str,
+    client: httpx.AsyncClient | None = None,
+) -> tuple[float, str, str]:
+    """Resolve the best vegetation index value for a parcel's crop species.
+
+    Returns (vi_value, vi_type, data_quality).
+    data_quality: "measured" | "simulated"
+    """
+    indices = await fetch_latest_indices(entity_id, tenant_id, client)
+
+    if not indices:
+        logger.info("No VI data for %s, using simulated 0.7 NDVI", entity_id)
+        return (0.7, "NDVI", "simulated")
+
+    # Determine which VI type is optimal for the crop morphological type
+    woody_crops = {"olive", "vineyard", "almond", "citrus", "apple", "pear",
+                   "peach", "plum", "cherry", "orange", "lemon", "forest",
+                   "walnut", "pistachio"}
+    morph = MorphologicalType.WOODY if species.lower() in woody_crops else MorphologicalType.HERBACEOUS
+    preferred_vi = select_index(morph)
+
+    # Find the best matching index
+    preferred_name = preferred_vi.value
+    for idx in indices:
+        if idx.index_type.upper() == preferred_name.upper():
+            return (idx.mean_value, idx.index_type, "measured")
+
+    # Fall back: use whichever index is available
+    logger.info("Preferred VI %s not found for %s, using %s", preferred_name, entity_id, indices[0].index_type)
+    return (indices[0].mean_value, indices[0].index_type, "measured")

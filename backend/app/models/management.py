@@ -15,6 +15,14 @@ class ManagementInput(BaseModel):
     Defaults represent conventional tillage, no cover crop, no irrigation,
     synthetic-only fertiliser at zero rate, and full residue retention.
     """
+    weather_source: str = Field(
+        default="weather_worker",
+        description='"weather_worker" for modelled weather, "sensor" for on-farm sensor',
+    )
+    weather_sensor_id: Optional[str] = Field(
+        default=None,
+        description="AgriSensor entity ID when weather_source='sensor'",
+    )
     residues_removed: bool = False
     residue_removal_fraction: float = Field(
         default=0.0, ge=0.0, le=1.0,

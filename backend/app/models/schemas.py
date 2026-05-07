@@ -42,13 +42,15 @@ class CalculateRequest(BaseModel):
     platform-service lookup when the caller doesn't supply them.
     """
     entity_id: str
-    tenant_id: str
+    tenant_id: Optional[str] = None
     lat: Optional[float] = None
     lon: Optional[float] = None
     date: Optional[date] = None
     crop_species: Optional[str] = None
     morph_type: Optional[str] = None  # "herbaceous" | "woody"
     management: Optional[dict] = None  # management data for Tier 2+
+    weather_source: Optional[str] = None  # "weather_worker" | "sensor"
+    weather_sensor_id: Optional[str] = None  # sensor entity ID
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +147,46 @@ class CalculationRunResponse(BaseModel):
     inputs_snapshot: dict
     outputs: dict
     uncertainty: Optional[dict] = None
+
+
+# ---------------------------------------------------------------------------
+# Summary / Aggregation models
+# ---------------------------------------------------------------------------
+
+class ParcelSummary(BaseModel):
+    """Single parcel row in the tenant carbon summary table."""
+    parcel_id: str
+    parcel_name: str = ""
+    crop_species: str = ""
+    co2_captured_cumulative: float = 0.0
+    carbon_stock_total: float = 0.0
+    tier: int = 1
+    methodology: str = ""
+    last_calculation_date: Optional[str] = None
+
+
+class YearlyAggregation(BaseModel):
+    """Carbon totals for a given year across all parcels."""
+    year: int
+    total_co2_captured_kg: float = 0.0
+    avg_carbon_stock_tC_ha: float = 0.0
+    parcel_count: int = 0
+
+
+class TierSummaryResponse(BaseModel):
+    """Full tenant-level carbon summary."""
+    tenant_id: str
+    parcels: list[ParcelSummary] = []
+    yearly_aggregations: list[YearlyAggregation] = []
+
+
+class SensorInfo(BaseModel):
+    """AgriSensor info for weather source selector."""
+    id: str
+    name: str
+    sensor_type: str = ""
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 # ---------------------------------------------------------------------------

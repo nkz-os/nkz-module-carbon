@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 import { useParams } from 'react-router-dom';
+import { EmptyState, Button, Spinner } from '@nekazari/ui-kit';
 import { fetchAssessment, fetchTierInfo, triggerCalculation } from '../api/carbonApi';
 import type { CarbonAssessment, TierInfo } from '../api/carbonApi';
 import CarbonTierBadge from './CarbonTierBadge';
@@ -74,8 +75,8 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
   // Loading state
   if (loading) {
     return (
-      <div style={{ padding: '16px', textAlign: 'center', color: '#9CA3AF', fontSize: '13px' }}>
-        {t('loading')}
+      <div style={{ padding: '16px', display: 'flex', justifyContent: 'center' }}>
+        <Spinner size="sm" />
       </div>
     );
   }
@@ -83,30 +84,12 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
   // Error state
   if (error && !assessment) {
     return (
-      <div
-        style={{
-          padding: '16px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '12px',
-        }}
-      >
-        <div style={{ color: '#DC2626', fontSize: '13px', textAlign: 'center' }}>{error}</div>
-        <button
-          onClick={loadData}
-          style={{
-            padding: '8px 16px',
-            border: '1px solid #D1D5DB',
-            borderRadius: '6px',
-            backgroundColor: '#FFFFFF',
-            color: '#374151',
-            fontSize: '13px',
-            cursor: 'pointer',
-          }}
-        >
-          {t('retry')}
-        </button>
+      <div style={{ padding: '16px' }}>
+        <EmptyState
+          title={t('error_loading')}
+          description={error}
+          action={{ label: t('retry'), onClick: loadData }}
+        />
       </div>
     );
   }
@@ -114,41 +97,15 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
   // Empty state
   if (!assessment) {
     return (
-      <div
-        style={{
-          padding: '24px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '16px',
-          textAlign: 'center',
-        }}
-      >
-        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-          <circle cx="20" cy="20" r="18" fill="#E5E7EB" />
-          <path
-            d="M14 26L20 14L26 26H14Z"
-            fill="#9CA3AF"
-          />
-        </svg>
-        <div style={{ fontSize: '13px', color: '#6B7280', lineHeight: 1.5 }}>{t('no_data')}</div>
-        <button
-          onClick={handleCalculate}
-          disabled={calculating}
-          style={{
-            padding: '10px 24px',
-            border: 'none',
-            borderRadius: '8px',
-            backgroundColor: calculating ? '#9CA3AF' : '#059669',
-            color: '#FFFFFF',
-            fontSize: '14px',
-            fontWeight: 500,
-            cursor: calculating ? 'not-allowed' : 'pointer',
-            opacity: calculating ? 0.7 : 1,
+      <div style={{ padding: '16px' }}>
+        <EmptyState
+          title={t('title')}
+          description={t('no_data')}
+          action={{
+            label: calculating ? t('calculating') : t('calculate'),
+            onClick: handleCalculate,
           }}
-        >
-          {calculating ? t('calculating') : t('calculate')}
-        </button>
+        />
       </div>
     );
   }
@@ -256,25 +213,15 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
       )}
 
       {/* Calculate button */}
-      <button
+      <Button
         onClick={handleCalculate}
-        disabled={calculating}
-        style={{
-          width: '100%',
-          padding: '10px 16px',
-          border: 'none',
-          borderRadius: '8px',
-          backgroundColor: calculating ? '#9CA3AF' : '#059669',
-          color: '#FFFFFF',
-          fontSize: '14px',
-          fontWeight: 500,
-          cursor: calculating ? 'not-allowed' : 'pointer',
-          opacity: calculating ? 0.7 : 1,
-          transition: 'background-color 0.15s ease',
-        }}
+        loading={calculating}
+        variant="primary"
+        size="md"
+        style={{ width: '100%' }}
       >
         {calculating ? t('calculating') : t('calculate')}
-      </button>
+      </Button>
     </div>
   );
 };

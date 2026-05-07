@@ -8,8 +8,11 @@ Endpoints:
   GET    /parcels/{entity_id}/assessment/history   — Historical assessments
   GET    /parcels/{entity_id}/tier-info            — Tier & gap analysis
   GET    /parcels/{entity_id}/projection           — 20-year SOC projection
+  GET    /sensors/available                        — List tenant AgriSensors
+  GET    /tenant/summary                           — Multi-parcel carbon summary
 """
 
+import asyncio
 import logging
 from datetime import date, datetime, timezone
 from typing import Optional
@@ -21,10 +24,14 @@ from app.models.schemas import (
     CarbonAssessmentResponse,
     ErrorResponse,
     HistoryResponse,
+    ParcelSummary,
     PoolStateResponse,
     ProjectionResponse,
+    SensorInfo,
     TierGap,
     TierInfoResponse,
+    TierSummaryResponse,
+    YearlyAggregation,
 )
 from app.models.management import ManagementInput
 from app.services.carbon_engine import (
@@ -57,9 +64,17 @@ from app.services.data_resolver import (
 from app.services.spectral import MorphologicalType, VegetationIndex, select_index
 from app.services.solar_geometry import clear_sky_par_MJ_m2_day, doy_from_date
 from app.services.units import C_TO_CO2
-from app.ngsild.client import upsert_entity, query_entities
+from app.ngsild.client import upsert_entity, query_entities, get_entity
 from app.ngsild.entities import build_carbon_assessment, build_carbon_stock
 from app.db.database import insert_carbon_calculation
+from app.platform.weather_client import (
+    WeatherSnapshot,
+    fetch_weather,
+    fetch_parcel_weather,
+    fetch_weather_from_sensor,
+    list_tenant_sensors,
+)
+from app.platform.vegetation_client import resolve_vi_for_parcel
 
 logger = logging.getLogger(__name__)
 
@@ -241,14 +256,6 @@ def _resolve_morph_type(crop_species: str) -> MorphologicalType:
     return MorphologicalType.HERBACEOUS
 
 
-def _get_lue(species: str) -> float:
-    return DEFAULT_LUE.get(species.lower(), DEFAULT_LUE["unknown"])
-
-
-def _get_root_fraction(species: str) -> float:
-    return DEFAULT_ROOT_FRACTION.get(species.lower(), DEFAULT_ROOT_FRACTION["unknown"])
-
-
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -344,9 +351,8 @@ async def calculate(
 ):
     """Run Tier 1 (always) + Tier 2/3 if sufficient data.
 
-    Accepts calculation parameters directly in the request body.
-    Platform service integration (vegetation-prime, weather-worker,
-    bioorchestrator) will be wired in Phase 6.
+    Fetches real vegetation index from vegetation-prime and weather from
+    weather-worker or tenant sensors depending on configuration.
     """
     _tid = body.tenant_id or tenant_id
     calc_date = body.date or date.today()
@@ -356,10 +362,10 @@ async def calculate(
     lat = body.lat if body.lat is not None else 42.0
     lon = body.lon if body.lon is not None else -2.0
 
-    # --- 1. Resolve vegetation index ---
-    morph_type = _resolve_morph_type(species)
-    vi_type = select_index(morph_type)
-    vi_value = 0.7  # Phase 6: replace with real VI from vegetation-prime
+    # --- 1. Resolve vegetation index from vegetation-prime ---
+    vi_value, vi_type_name, vi_quality = await resolve_vi_for_parcel(
+        entity_id, _tid, species,
+    )
 
     # Species-specific fAPAR params per spec 3.1
     fapar_params = _get_fapar_params(species)
@@ -372,9 +378,29 @@ async def calculate(
     fapar_a, fapar_b, _ = fapar_params
     fapar = compute_fapar_frac(vi_value, a=fapar_a, b=fapar_b)
 
-    # --- 2. Weather ---
-    par_MJ_m2_day = clear_sky_par_MJ_m2_day(lat, doy)
-    temp_celsius = 15.0  # Phase 6: replace with weather-worker fetch
+    # --- 2. Weather: weather-worker or tenant sensor ---
+    management = body.management or {}
+    weather_source = body.weather_source or management.get("weather_source", "weather_worker")
+    sensor_id = body.weather_sensor_id or management.get("weather_sensor_id")
+
+    weather: WeatherSnapshot | None = None
+
+    if weather_source == "sensor" and sensor_id:
+        weather = await fetch_weather_from_sensor(entity_id, _tid, sensor_id)
+
+    if weather is None:
+        # Try parcel-specific weather from entity-manager
+        weather = await fetch_parcel_weather(entity_id, _tid)
+
+    if weather is None:
+        # Fall back to clear-sky PAR + generic temperature
+        par_MJ_m2_day = clear_sky_par_MJ_m2_day(lat, doy)
+        temp_celsius = 20.0
+        weather_data_quality = "synthetic_par"
+    else:
+        par_MJ_m2_day = weather.par_MJ_m2_day
+        temp_celsius = weather.temp_air_celsius
+        weather_data_quality = weather.data_quality
 
     # --- 3. Crop parameters ---
     lue = _get_lue(species)
@@ -394,7 +420,6 @@ async def calculate(
     root_frac = root_frac_val
 
     # --- 4. Tier determination via Data Resolver ---
-    management = body.management or {}
     has_management = bool(management and management.get("tillage_type"))
     has_soil_lab = bool(
         management and (
@@ -429,16 +454,24 @@ async def calculate(
         DataTier.THREE: "Tier 3 — RothC + GHG (N2O/NEE) + LUE",
     }[tier_result.tier]
     missing_for_next_tier = tier_result.missing_for_next_tier
-    data_sources = tier_result.available_sources + ["solar_geometry"]
+    data_sources = tier_result.available_sources
+    if weather_data_quality != "synthetic_par":
+        data_sources.append(f"weather_{weather_data_quality}")
 
     # --- 5. Run Tier 1 ---
+    quality_flags = []
+    if vi_quality == "simulated":
+        quality_flags.append("vi_simulated")
+    if weather_data_quality == "synthetic_par":
+        quality_flags.append("par_synthetic")
+
     tier1_input = Tier1Input(
         par_MJ_m2_day=par_MJ_m2_day,
         fapar_frac=fapar,
         lue_gC_per_MJ=lue,
         root_fraction=root_frac,
         species=species,
-        data_quality_flags=["simulated"] if vi_value == 0.7 else [],
+        data_quality_flags=quality_flags,
     )
     tier1_out = calculate_tier1(tier1_input)
 
@@ -807,3 +840,182 @@ async def get_projection(
         project_soc=project_soc_progression,
         annual_delta_tC_ha_yr=annual_delta,
     )
+
+
+# ---------------------------------------------------------------------------
+# Sensor listing
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/sensors/available",
+    response_model=list[SensorInfo],
+)
+async def list_sensors(
+    tenant_id: str = Depends(_get_tenant_id),
+):
+    """List tenant's AgriSensor entities available as weather data sources."""
+    sensors = await list_tenant_sensors(tenant_id)
+    return [
+        SensorInfo(
+            id=s["id"],
+            name=s["name"],
+            sensor_type=s.get("sensor_type", ""),
+            latitude=s.get("latitude"),
+            longitude=s.get("longitude"),
+        )
+        for s in sensors
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Multi-parcel summary
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/tenant/summary",
+    response_model=TierSummaryResponse,
+)
+async def get_tenant_summary(
+    year: Optional[int] = Query(default=None),
+    tenant_id: str = Depends(_get_tenant_id),
+):
+    """Aggregate carbon assessments across all parcels for the tenant.
+
+    Queries all AgriParcel entities in Orion-LD, fetches their latest
+    CarbonAssessment, and builds a summary table with yearly aggregation.
+    """
+    # 1. Fetch all AgriParcel entities for the tenant
+    try:
+        parcels = await query_entities(
+            entity_type="AgriParcel",
+            tenant_id=tenant_id,
+            limit=500,
+        )
+    except Exception as exc:
+        logger.exception("Error querying AgriParcel for tenant %s", tenant_id)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    if not parcels:
+        return TierSummaryResponse(tenant_id=tenant_id, parcels=[], yearly_aggregations=[])
+
+    # 2. Extract parcel IDs and names
+    parcel_infos = []
+    for ent in parcels:
+        pid = ent.get("id", "")
+        # Extract short ID from URN
+        short_id = pid.split(":")[-1] if ":" in pid else pid
+        name = _extract_ngsild_value(ent, "name", short_id)
+        crop = _extract_ngsild_value(ent, "cropSpecies", "")
+        parcel_infos.append((pid, short_id, str(name), str(crop)))
+
+    # 3. Fetch latest CarbonAssessment for each parcel (parallel, max 10 concurrent)
+    sem = asyncio.Semaphore(10)
+
+    async def _fetch_one(parcel_id: str, short_id: str):
+        async with sem:
+            try:
+                results = await query_entities(
+                    entity_type="CarbonAssessment",
+                    tenant_id=tenant_id,
+                    query=f'refAgriParcel=="{parcel_id}"',
+                    limit=1,
+                )
+                if not results:
+                    return None
+                ent = results[0]
+                props = {k: v.get("value") if isinstance(v, dict) and "value" in v else v
+                         for k, v in ent.items()
+                         if k not in ("id", "type", "@context")}
+                return {
+                    "parcel_id": short_id,
+                    "assessment_date": str(props.get("assessmentDate", "")),
+                    "tier": int(props.get("dataTier", 1)),
+                    "methodology": str(props.get("methodology", "")),
+                    "co2_seq_cum": float(props.get("co2SequesteredCumulative", 0)),
+                    "carbon_stock": float(props.get("carbonStockTotal", 0)),
+                }
+            except Exception as exc:
+                logger.debug("No assessment for parcel %s: %s", short_id, exc)
+                return None
+
+    tasks = [_fetch_one(pid, sid) for pid, sid, _, _ in parcel_infos]
+    results = await asyncio.gather(*tasks)
+
+    # 4. Build summary rows
+    parcels_summary: list[ParcelSummary] = []
+    for (_, short_id, name, crop), result in zip(parcel_infos, results):
+        if result is None:
+            parcels_summary.append(ParcelSummary(
+                parcel_id=short_id,
+                parcel_name=name,
+                crop_species=crop,
+                co2_captured_cumulative=0.0,
+                carbon_stock_total=0.0,
+                tier=1,
+                methodology="",
+                last_calculation_date=None,
+            ))
+        else:
+            # Filter by year if specified
+            assess_year = None
+            if result["assessment_date"]:
+                try:
+                    assess_year = int(result["assessment_date"][:4])
+                except (ValueError, IndexError):
+                    pass
+            if year is not None and assess_year != year:
+                continue
+
+            parcels_summary.append(ParcelSummary(
+                parcel_id=short_id,
+                parcel_name=name,
+                crop_species=crop,
+                co2_captured_cumulative=round(result["co2_seq_cum"], 2),
+                carbon_stock_total=round(result["carbon_stock"], 2),
+                tier=result["tier"],
+                methodology=result["methodology"],
+                last_calculation_date=result["assessment_date"] or None,
+            ))
+
+    # 5. Build yearly aggregation
+    yearly: dict[int, dict] = {}
+    for p in parcels_summary:
+        if p.last_calculation_date:
+            try:
+                y = int(p.last_calculation_date[:4])
+            except (ValueError, IndexError):
+                continue
+            if y not in yearly:
+                yearly[y] = {"total_co2": 0.0, "total_stock": 0.0, "count": 0}
+            yearly[y]["total_co2"] += p.co2_captured_cumulative
+            yearly[y]["total_stock"] += p.carbon_stock_total
+            yearly[y]["count"] += 1
+
+    yearly_aggs = [
+        YearlyAggregation(
+            year=y,
+            total_co2_captured_kg=round(d["total_co2"], 2),
+            avg_carbon_stock_tC_ha=round(d["total_stock"] / d["count"], 2) if d["count"] else 0,
+            parcel_count=d["count"],
+        )
+        for y, d in sorted(yearly.items())
+    ]
+
+    return TierSummaryResponse(
+        tenant_id=tenant_id,
+        parcels=parcels_summary,
+        yearly_aggregations=yearly_aggs,
+    )
+
+
+def _extract_ngsild_value(entity: dict, attr: str, default: str = "") -> str:
+    """Extract a string NGSI-LD Property value."""
+    prop = entity.get(attr, {})
+    if isinstance(prop, dict):
+        val = prop.get("value", "")
+        return str(val) if val else default
+    if isinstance(prop, str):
+        return prop
+    return default

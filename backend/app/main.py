@@ -8,6 +8,7 @@ from app.api import (
     internal_router,
     assessments_router,
     management_router,
+    mrv_router,
     scenarios_router,
     timeseries_router,
     webhooks_router,
@@ -44,6 +45,7 @@ app.include_router(internal_router)
 # Core carbon endpoints
 app.include_router(assessments_router)
 app.include_router(management_router)
+app.include_router(mrv_router)
 app.include_router(scenarios_router)
 app.include_router(timeseries_router)
 app.include_router(webhooks_router)

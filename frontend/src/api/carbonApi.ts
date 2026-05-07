@@ -71,6 +71,16 @@ export interface ManagementData {
   soil_lab_soc_tC_ha?: number | null;
   soil_lab_clay_pct?: number | null;
   harvest_export_fraction?: number;
+  weather_source?: string;
+  weather_sensor_id?: string;
+}
+
+export interface SensorInfo {
+  id: string;
+  name: string;
+  sensor_type: string;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface MRVReport {
@@ -176,4 +186,45 @@ export async function downloadMRVReport(
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
+// Sensor listing
+// ---------------------------------------------------------------------------
+
+export async function fetchAvailableSensors(entityId: string): Promise<SensorInfo[]> {
+  return apiFetch<SensorInfo[]>(`/sensors/available?entity_id=${encodeURIComponent(entityId)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Tenant summary
+// ---------------------------------------------------------------------------
+
+export interface ParcelSummary {
+  parcel_id: string;
+  parcel_name: string;
+  crop_species: string;
+  co2_captured_cumulative: number;
+  carbon_stock_total: number;
+  tier: number;
+  methodology: string;
+  last_calculation_date: string | null;
+}
+
+export interface YearlyAggregation {
+  year: number;
+  total_co2_captured_kg: number;
+  avg_carbon_stock_tC_ha: number;
+  parcel_count: number;
+}
+
+export interface TierSummaryResponse {
+  tenant_id: string;
+  parcels: ParcelSummary[];
+  yearly_aggregations: YearlyAggregation[];
+}
+
+export async function fetchTenantSummary(year?: number): Promise<TierSummaryResponse> {
+  const params = year ? `?year=${year}` : '';
+  return apiFetch<TierSummaryResponse>(`/tenant/summary${params}`);
 }

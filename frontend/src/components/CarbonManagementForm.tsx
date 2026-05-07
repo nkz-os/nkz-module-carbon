@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from '@nekazari/sdk';
-import { saveManagement } from '../api/carbonApi';
-import type { ManagementData } from '../api/carbonApi';
+import { Select } from '@nekazari/ui-kit';
+import { saveManagement, fetchAvailableSensors } from '../api/carbonApi';
+import type { ManagementData, SensorInfo } from '../api/carbonApi';
 import { setManagementData } from '../hooks/useCarbonState';
 
 interface CarbonManagementFormProps {
@@ -14,6 +15,11 @@ const TILLAGE_OPTIONS = [
   { value: 'conventional', labelKey: 'tillage_conventional' },
   { value: 'reduced', labelKey: 'tillage_reduced' },
   { value: 'no_till', labelKey: 'tillage_no_till' },
+];
+
+const WEATHER_SOURCE_OPTIONS = [
+  { value: 'weather_worker', labelKey: 'weather_worker' },
+  { value: 'sensor', labelKey: 'weather_sensor' },
 ];
 
 const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
@@ -36,9 +42,21 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
     initialData?.n_organic_kgN_ha_yr ?? 0,
   );
   const [irrigated, setIrrigated] = useState(initialData?.irrigated || false);
+  const [weatherSource, setWeatherSource] = useState(initialData?.weather_source || 'weather_worker');
+  const [weatherSensorId, setWeatherSensorId] = useState(initialData?.weather_sensor_id || '');
+  const [sensors, setSensors] = useState<SensorInfo[]>([]);
 
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Fetch available sensors when weather source changes to sensor
+  useEffect(() => {
+    if (weatherSource === 'sensor' && entityId) {
+      fetchAvailableSensors(entityId)
+        .then(setSensors)
+        .catch(() => setSensors([]));
+    }
+  }, [weatherSource, entityId]);
 
   // Sync initial data
   useEffect(() => {
@@ -53,6 +71,8 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
       if (initialData.n_organic_kgN_ha_yr !== undefined)
         setNFertilizerOrganic(initialData.n_organic_kgN_ha_yr);
       if (initialData.irrigated !== undefined) setIrrigated(initialData.irrigated);
+      if (initialData.weather_source) setWeatherSource(initialData.weather_source);
+      if (initialData.weather_sensor_id) setWeatherSensorId(initialData.weather_sensor_id);
     }
   }, [initialData]);
 
@@ -68,6 +88,8 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
         n_synthetic_kgN_ha_yr: nFertilizerSynthetic,
         n_organic_kgN_ha_yr: nFertilizerOrganic,
         irrigated,
+        weather_source: weatherSource,
+        weather_sensor_id: weatherSource === 'sensor' ? weatherSensorId : undefined,
       };
       await saveManagement(entityId, data);
       setManagementData(data);  // share with context-panel for calculate
@@ -88,6 +110,8 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
     nFertilizerSynthetic,
     nFertilizerOrganic,
     irrigated,
+    weatherSource,
+    weatherSensorId,
     onSaved,
     t,
   ]);
@@ -225,6 +249,45 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
             style={inputStyle}
           />
         </div>
+      </div>
+
+      {/* Weather source */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '12px',
+        }}
+      >
+        <div style={rowStyle}>
+          <label style={labelStyle}>{t('weather_source')}</label>
+          <Select
+            value={weatherSource}
+            onValueChange={setWeatherSource}
+            options={WEATHER_SOURCE_OPTIONS.map((opt) => ({
+              value: opt.value,
+              label: t(opt.labelKey),
+            }))}
+            size="sm"
+          />
+        </div>
+        {weatherSource === 'sensor' && (
+          <div style={rowStyle}>
+            <label style={labelStyle}>{t('select_sensor')}</label>
+            <Select
+              value={weatherSensorId}
+              onValueChange={setWeatherSensorId}
+              options={[
+                { value: '', label: t('select_sensor') },
+                ...sensors.map((s) => ({
+                  value: s.id,
+                  label: `${s.name}${s.sensor_type ? ` (${s.sensor_type})` : ''}`,
+                })),
+              ]}
+              size="sm"
+            />
+          </div>
+        )}
       </div>
 
       {/* Toggles */}
