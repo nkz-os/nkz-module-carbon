@@ -82,5 +82,6 @@
   "weather_worker": "Servei Meteorològic",
   "weather_sensor": "Sensor de Camp",
   "select_sensor": "Seleccionar sensor...",
-  "no_sensors": "No hi ha sensors disponibles"
+  "no_sensors": "No hi ha sensors disponibles",
+  "error_no_entity": "Selecciona una parcel·la per calcular el carboni"
 }

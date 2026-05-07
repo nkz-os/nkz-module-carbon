@@ -82,5 +82,6 @@
   "weather_worker": "Eguraldi Zerbitzua",
   "weather_sensor": "Landako Sentsorea",
   "select_sensor": "Hautatu sentsorea...",
-  "no_sensors": "Ez dago sentsorerik"
+  "no_sensors": "Ez dago sentsorerik",
+  "error_no_entity": "Hautatu lursail bat karbonoa kalkulatzeko"
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from '@nekazari/sdk';
+import { useTranslation, useViewerOptional } from '@nekazari/sdk';
 import { useParams } from 'react-router-dom';
 import { MetricCard, MetricGrid, Spinner } from '@nekazari/ui-kit';
 import { fetchAssessment } from '../api/carbonApi';
@@ -11,7 +11,14 @@ interface CarbonDashboardWidgetProps {
 }
 
 function useEntityId(props: CarbonDashboardWidgetProps): string {
+  const viewer = useViewerOptional();
   const params = useParams<{ entityId: string }>();
+
+  if (viewer?.selectedEntityId) {
+    const id = viewer.selectedEntityId;
+    return id.includes(':') ? id.split(':').pop()! : id;
+  }
+
   return props.entityId || params.entityId || '';
 }
 

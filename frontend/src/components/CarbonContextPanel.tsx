@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from '@nekazari/sdk';
+import { useTranslation, useViewerOptional } from '@nekazari/sdk';
 import { useParams } from 'react-router-dom';
 import { EmptyState, Button, Spinner } from '@nekazari/ui-kit';
 import { fetchAssessment, fetchTierInfo, triggerCalculation } from '../api/carbonApi';
@@ -14,7 +14,16 @@ interface CarbonContextPanelProps {
 }
 
 function useEntityId(props: CarbonContextPanelProps): string {
+  const viewer = useViewerOptional();
   const params = useParams<{ entityId: string }>();
+
+  // Viewer context is the canonical source when inside the unified viewer
+  if (viewer?.selectedEntityId) {
+    // Extract short ID from URN if needed
+    const id = viewer.selectedEntityId;
+    return id.includes(':') ? id.split(':').pop()! : id;
+  }
+
   return props.entityId || params.entityId || '';
 }
 
@@ -54,7 +63,10 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
   }, [loadData]);
 
   const handleCalculate = useCallback(async () => {
-    if (!entityId) return;
+    if (!entityId) {
+      setError(t('error_no_entity'));
+      return;
+    }
     setCalculating(true);
     setError(null);
     try {

@@ -82,5 +82,6 @@
   "weather_worker": "Weather Service",
   "weather_sensor": "Field Sensor",
   "select_sensor": "Select sensor...",
-  "no_sensors": "No sensors available"
+  "no_sensors": "No sensors available",
+  "error_no_entity": "Select a parcel to calculate carbon"
 }

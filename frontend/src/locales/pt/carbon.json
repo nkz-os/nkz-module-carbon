@@ -82,5 +82,6 @@
   "weather_worker": "Servico Meteorologico",
   "weather_sensor": "Sensor de Campo",
   "select_sensor": "Selecionar sensor...",
-  "no_sensors": "Nao ha sensores disponiveis"
+  "no_sensors": "Nao ha sensores disponiveis",
+  "error_no_entity": "Selecione uma parcela para calcular o carbono"
 }

@@ -82,5 +82,6 @@
   "weather_worker": "Service Meteo",
   "weather_sensor": "Capteur de Terrain",
   "select_sensor": "Selectionner un capteur...",
-  "no_sensors": "Aucun capteur disponible"
+  "no_sensors": "Aucun capteur disponible",
+  "error_no_entity": "Selectionnez une parcelle pour calculer le carbone"
 }
