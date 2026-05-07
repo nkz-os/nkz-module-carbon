@@ -98,13 +98,25 @@ export interface MRVReport {
   uncertainty_deduction: number;
 }
 
+function getTenantId(): string {
+  try {
+    const ctx = (window as any).__nekazariAuthContext;
+    return ctx?.tenantId || '';
+  } catch {
+    return '';
+  }
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { ...(options?.headers as Record<string, string> || {}) };
+  const tenantId = getTenantId();
+  if (tenantId && !headers['NGSILD-Tenant']) {
+    headers['NGSILD-Tenant'] = tenantId;
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
     ...options,
-    headers: {
-      ...options?.headers,
-    },
+    headers,
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
