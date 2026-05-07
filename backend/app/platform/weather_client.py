@@ -151,7 +151,7 @@ async def fetch_weather_from_sensor(
                 params["q"] = f'refDevice=="{sensor_id}"'
 
             headers = {
-                "NGSILD-Tenant": tenant_id,
+                "NGSILD-Tenant": tenant_id, "Fiware-Service": tenant_id, "Fiware-ServicePath": "/",
                 "Accept": "application/ld+json",
             }
 
@@ -204,7 +204,7 @@ async def list_tenant_sensors(
                 f"{ORION_URL}/ngsi-ld/v1/entities",
                 params={"type": "AgriSensor", "limit": "100"},
                 headers={
-                    "NGSILD-Tenant": tenant_id,
+                    "NGSILD-Tenant": tenant_id, "Fiware-Service": tenant_id, "Fiware-ServicePath": "/",
                     "Accept": "application/ld+json",
                 },
                 timeout=10,

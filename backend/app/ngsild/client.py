@@ -25,7 +25,7 @@ async def upsert_entity(
 ) -> dict:
     """Create or update an NGSI-LD entity. Returns the entity as stored."""
     headers = {
-        "NGSILD-Tenant": tenant_id,
+        "NGSILD-Tenant": tenant_id, "Fiware-Service": tenant_id, "Fiware-ServicePath": "/",
         "Content-Type": "application/ld+json",
     }
     entity_id = entity["id"]
@@ -65,7 +65,7 @@ async def query_entities(
     client: httpx.AsyncClient | None = None,
 ) -> list[dict]:
     """Query NGSI-LD entities by type."""
-    headers = {"NGSILD-Tenant": tenant_id, "Accept": "application/ld+json"}
+    headers = {"NGSILD-Tenant": tenant_id, "Fiware-Service": tenant_id, "Fiware-ServicePath": "/", "Accept": "application/ld+json"}
     params: dict = {"type": entity_type, "limit": limit}
     if query:
         params["q"] = query
@@ -89,7 +89,7 @@ async def get_entity(
     client: httpx.AsyncClient | None = None,
 ) -> dict | None:
     """Get a single NGSI-LD entity by ID. Returns None if 404."""
-    headers = {"NGSILD-Tenant": tenant_id, "Accept": "application/ld+json"}
+    headers = {"NGSILD-Tenant": tenant_id, "Fiware-Service": tenant_id, "Fiware-ServicePath": "/", "Accept": "application/ld+json"}
     async with (client or httpx.AsyncClient()) as c:
         resp = await c.get(
             f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}",
