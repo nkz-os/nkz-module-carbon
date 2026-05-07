@@ -140,13 +140,18 @@ def _get_fapar_params(species: str) -> tuple[float, float, str] | None:
 def _get_tenant_id(
     request: Request,
     ngsild_tenant: str = Header(default="", alias="NGSILD-Tenant"),
+    fiware_service: str = Header(default="", alias="Fiware-Service"),
     authorization: str | None = Header(default=None, alias="Authorization"),
 ) -> str:
-    """Extract tenant ID from NGSILD-Tenant header, JWT, or nkz_token cookie."""
+    """Extract tenant ID from NGSILD-Tenant, Fiware-Service, JWT, or cookie."""
     import base64, json
 
     if ngsild_tenant:
         return ngsild_tenant
+
+    # Fiware-Service is the FIWARE v2 equivalent used by the platform
+    if fiware_service:
+        return fiware_service
 
     # Try Bearer token from Authorization header
     token = None
