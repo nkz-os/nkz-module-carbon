@@ -155,7 +155,7 @@ const CarbonPage: React.FC = () => {
         <EmptyState
           title={t('error_loading')}
           description={error}
-          action={{ label: t('retry'), onClick: loadSummary }}
+          action={<button onClick={loadSummary} className="nkz-btn nkz-btn-secondary">{t('retry')}</button>}
         />
       </div>
     );

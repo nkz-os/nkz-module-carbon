@@ -88,7 +88,7 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
         <EmptyState
           title={t('error_loading')}
           description={error}
-          action={{ label: t('retry'), onClick: loadData }}
+          action={<Button onClick={loadData} variant="secondary" size="sm">{t('retry')}</Button>}
         />
       </div>
     );
@@ -101,10 +101,11 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
         <EmptyState
           title={t('title')}
           description={t('no_data')}
-          action={{
-            label: calculating ? t('calculating') : t('calculate'),
-            onClick: handleCalculate,
-          }}
+          action={
+            <Button onClick={handleCalculate} loading={calculating} variant="primary" size="md">
+              {calculating ? t('calculating') : t('calculate')}
+            </Button>
+          }
         />
       </div>
     );
