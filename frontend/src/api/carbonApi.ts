@@ -1,4 +1,4 @@
-const API_BASE = '/api/carbon';
+const API_BASE = 'https://nkz.robotika.cloud/api/carbon';
 
 export interface CarbonValue {
   value: number;
