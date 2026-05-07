@@ -886,6 +886,7 @@ async def get_tenant_summary(
     Queries all AgriParcel entities in Orion-LD, fetches their latest
     CarbonAssessment, and builds a summary table with yearly aggregation.
     """
+    logger.info("Summary requested for tenant=%s year=%s", tenant_id, year)
     # 1. Fetch all AgriParcel entities for the tenant
     try:
         parcels = await query_entities(
