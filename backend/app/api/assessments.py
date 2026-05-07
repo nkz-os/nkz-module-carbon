@@ -888,6 +888,7 @@ async def get_tenant_summary(
     """
     logger.info("Summary requested for tenant=%s year=%s", tenant_id, year)
     # 1. Fetch all AgriParcel entities for the tenant
+    parcels: list[dict] = []
     try:
         parcels = await query_entities(
             entity_type="AgriParcel",
@@ -897,6 +898,19 @@ async def get_tenant_summary(
     except Exception as exc:
         logger.exception("Error querying AgriParcel for tenant %s", tenant_id)
         raise HTTPException(status_code=500, detail=str(exc))
+
+    # Fallback: also include entities without tenant isolation (local=true)
+    if len(parcels) == 0:
+        try:
+            parcels = await query_entities(
+                entity_type="AgriParcel",
+                tenant_id=tenant_id,
+                limit=500,
+                local=True,
+            )
+            logger.info("Falling back to local scope, found %d parcels", len(parcels))
+        except Exception:
+            pass
 
     if not parcels:
         return TierSummaryResponse(tenant_id=tenant_id, parcels=[], yearly_aggregations=[])

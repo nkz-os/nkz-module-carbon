@@ -63,10 +63,21 @@ async def query_entities(
     attrs: str | None = None,
     limit: int = 100,
     client: httpx.AsyncClient | None = None,
+    local: bool = False,
 ) -> list[dict]:
-    """Query NGSI-LD entities by type."""
-    headers = {"NGSILD-Tenant": tenant_id, "Fiware-Service": tenant_id, "Fiware-ServicePath": "/", "Accept": "application/ld+json"}
+    """Query NGSI-LD entities by type.
+
+    Set local=True to bypass tenant isolation (queries all entities
+    regardless of tenant association).
+    """
+    headers = {"Accept": "application/ld+json"}
+    if not local:
+        headers["NGSILD-Tenant"] = tenant_id
+        headers["Fiware-Service"] = tenant_id
+        headers["Fiware-ServicePath"] = "/"
     params: dict = {"type": entity_type, "limit": limit}
+    if local:
+        params["local"] = "true"
     if query:
         params["q"] = query
     if attrs:
