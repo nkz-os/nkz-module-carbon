@@ -261,6 +261,14 @@ def _resolve_morph_type(crop_species: str) -> MorphologicalType:
 # ---------------------------------------------------------------------------
 
 
+@router.get("/debug/tenant")
+async def debug_tenant(
+    tenant_id: str = Depends(_get_tenant_id),
+):
+    """Debug endpoint — returns the extracted tenant ID."""
+    return {"tenant_id": tenant_id}
+
+
 @router.get(
     "/parcels/{entity_id}/assessment",
     response_model=CarbonAssessmentResponse,
