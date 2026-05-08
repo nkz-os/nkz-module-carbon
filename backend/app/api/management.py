@@ -28,7 +28,8 @@ _management_store: dict[str, dict[str, ManagementInput]] = {}
 def _get_tenant_id(ngsild_tenant: str = Header(default="", alias="NGSILD-Tenant")) -> str:
     if not ngsild_tenant:
         raise HTTPException(status_code=400, detail="NGSILD-Tenant header is required")
-    return ngsild_tenant
+    from app.common.tenant_utils import normalize_tenant_id
+    return normalize_tenant_id(ngsild_tenant)
 
 
 @router.post(

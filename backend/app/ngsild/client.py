@@ -18,16 +18,40 @@ NGSI_LD_CONTEXT = [
 ]
 
 
+def _make_headers(tenant_id: str, accept: bool = True, content_type: bool = False) -> dict:
+    """Build Orion-LD request headers with normalized tenant ID.
+
+    Uses BOTH NGSILD-Tenant (ETSI standard) AND Fiware-Service (legacy)
+    for compatibility with entity-manager writes. Includes Link @context
+    header for NGSI-LD compliance.
+    """
+    from app.common.tenant_utils import normalize_tenant_id
+
+    normalized = normalize_tenant_id(tenant_id)
+    headers = {
+        "NGSILD-Tenant": normalized,
+        "Fiware-Service": normalized,
+        "Fiware-ServicePath": "/",
+    }
+    if accept:
+        headers["Accept"] = "application/ld+json"
+    if content_type:
+        headers["Content-Type"] = "application/ld+json"
+    if CONTEXT_URL:
+        headers["Link"] = (
+            f'<{CONTEXT_URL}>; rel="http://www.w3.org/ns/json-ld#context";'
+            f' type="application/ld+json"'
+        )
+    return headers
+
+
 async def upsert_entity(
     entity: dict,
     tenant_id: str,
     client: httpx.AsyncClient | None = None,
 ) -> dict:
     """Create or update an NGSI-LD entity. Returns the entity as stored."""
-    headers = {
-        "NGSILD-Tenant": tenant_id, "Fiware-Service": tenant_id, "Fiware-ServicePath": "/",
-        "Content-Type": "application/ld+json",
-    }
+    headers = _make_headers(tenant_id, accept=False, content_type=True)
     entity_id = entity["id"]
 
     async with (client or httpx.AsyncClient()) as c:
@@ -70,11 +94,7 @@ async def query_entities(
     Set local=True to bypass tenant isolation (queries all entities
     regardless of tenant association).
     """
-    headers = {"Accept": "application/ld+json"}
-    if not local:
-        headers["NGSILD-Tenant"] = tenant_id
-        headers["Fiware-Service"] = tenant_id
-        headers["Fiware-ServicePath"] = "/"
+    headers = _make_headers(tenant_id) if not local else {"Accept": "application/ld+json"}
     params: dict = {"type": entity_type, "limit": limit}
     if local:
         params["local"] = "true"
@@ -100,7 +120,7 @@ async def get_entity(
     client: httpx.AsyncClient | None = None,
 ) -> dict | None:
     """Get a single NGSI-LD entity by ID. Returns None if 404."""
-    headers = {"NGSILD-Tenant": tenant_id, "Fiware-Service": tenant_id, "Fiware-ServicePath": "/", "Accept": "application/ld+json"}
+    headers = _make_headers(tenant_id)
     async with (client or httpx.AsyncClient()) as c:
         resp = await c.get(
             f"{ORION_URL}/ngsi-ld/v1/entities/{entity_id}",

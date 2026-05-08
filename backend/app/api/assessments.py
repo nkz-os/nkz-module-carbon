@@ -146,12 +146,14 @@ def _get_tenant_id(
     """Extract tenant ID from NGSILD-Tenant, Fiware-Service, JWT, or cookie."""
     import base64, json
 
+    from app.common.tenant_utils import normalize_tenant_id
+
     if ngsild_tenant:
-        return ngsild_tenant
+        return normalize_tenant_id(ngsild_tenant)
 
     # Fiware-Service is the FIWARE v2 equivalent used by the platform
     if fiware_service:
-        return fiware_service
+        return normalize_tenant_id(fiware_service)
 
     # Try Bearer token from Authorization header
     token = None
@@ -169,7 +171,7 @@ def _get_tenant_id(
             payload = json.loads(base64.urlsafe_b64decode(payload_b64))
             tenant_id = payload.get("tenant_id") or payload.get("tenant")
             if tenant_id:
-                return str(tenant_id)
+                return normalize_tenant_id(str(tenant_id))
         except Exception:
             pass
 
