@@ -6,9 +6,14 @@ import eu from './locales/eu/carbon.json';
 import fr from './locales/fr/carbon.json';
 import pt from './locales/pt/carbon.json';
 
-i18n.addResourceBundle('en', 'carbon', en, true, true);
-i18n.addResourceBundle('es', 'carbon', es, true, true);
-i18n.addResourceBundle('ca', 'carbon', ca, true, true);
-i18n.addResourceBundle('eu', 'carbon', eu, true, true);
-i18n.addResourceBundle('fr', 'carbon', fr, true, true);
-i18n.addResourceBundle('pt', 'carbon', pt, true, true);
+const NS = 'carbon';
+
+function register(): void {
+  const add = i18n && 'addResourceBundle' in i18n ? i18n.addResourceBundle : undefined;
+  if (typeof add !== 'function') return;
+  for (const [lang, res] of Object.entries({ en, es, ca, eu, fr, pt })) {
+    add.call(i18n, lang, NS, res, true, true);
+  }
+}
+
+register();
