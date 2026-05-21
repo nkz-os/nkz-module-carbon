@@ -15,14 +15,3 @@ htmlcov/
 
 # Agent planning/spec docs (not for public repo)
 docs/superpowers/
-docs/internal/
-internal-docs/
-.ai/
-docs/plans/
-docs/specs/
-docs/audits/
-*_PLAN.md
-*_SPEC.md
-*HANDOVER*.md
-HANDOFF.md
-CURRENT_STATE.md
