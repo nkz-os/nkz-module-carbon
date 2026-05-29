@@ -4,6 +4,14 @@
   "version": "0.1.0",
   "license": "AGPL-3.0",
   "description": "Carbon sequestration and biomass analytics for agricultural parcels. LUE-based GPP/NPP calculation with real PAR integration and DataHub timeseries federation.",
+  "description_i18n": {
+    "es": "Análisis de secuestro de carbono y biomasa para parcelas agrícolas. Cálculo de GPP/NPP basado en LUE con integración real de PAR y federación de series temporales DataHub.",
+    "en": "Carbon sequestration and biomass analytics for agricultural parcels. LUE-based GPP/NPP calculation with real PAR integration and DataHub timeseries federation.",
+    "eu": "Karbono bahiketa eta biomasa analisia nekazaritza-parcelentzat. GPP/NPP kalkulua LUEn oinarrituta, PAR integrazio errealarekin eta DataHub denbora-serie federazioarekin.",
+    "fr": "Analyse de séquestration du carbone et de biomasse pour les parcelles agricoles. Calcul GPP/NPP basé sur LUE avec intégration PAR réelle et fédération de séries temporelles DataHub.",
+    "pt": "Análise de sequestro de carbono e biomassa para parcelas agrícolas. Cálculo de GPP/NPP baseado em LUE com integração real de PAR e federação de séries temporais DataHub.",
+    "ca": "Anàlisi de segrest de carboni i biomassa per a parcel·les agrícoles. Càlcul de GPP/NPP basat en LUE amb integració real de PAR i federació de sèries temporals DataHub."
+  },
   "author": "Nekazari Platform",
   "module_type": "ADDON_PAID",
   "required_plan_type": "premium",
