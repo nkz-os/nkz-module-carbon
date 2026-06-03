@@ -41,3 +41,17 @@ jobs:
           context: backend/
           push: true
           tags: ghcr.io/nkz-os/nkz-module-carbon/carbon-backend:latest
+
+  # Frontend (MF2 remote) publish via the canonical in-cluster path: build the
+  # frontend, upload dist to immutable modules/carbon/<sha>/ and flip the pointer.
+  # Runs on push to main only (the in-cluster ARC runner; forks/PRs never use it).
+  publish-module:
+    name: Publish Module (frontend)
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: nkz-os/nkz/.github/workflows/_publish-module.yml@main
+    with:
+      module_id: carbon
+      working_dir: frontend
+    secrets:
+      INTERNAL_SERVICE_SECRET: ${{ secrets.INTERNAL_SERVICE_SECRET }}
