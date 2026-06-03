@@ -17,8 +17,9 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 
+from app.common.auth import AuthContext, require_auth
 from app.models.schemas import (
     CalculateRequest,
     CarbonAssessmentResponse,
@@ -137,48 +138,24 @@ def _get_fapar_params(species: str) -> tuple[float, float, str] | None:
     return FAPAR_PARAMS.get(species.lower())
 
 
-def _get_tenant_id(
-    request: Request,
-    ngsild_tenant: str = Header(default="", alias="NGSILD-Tenant"),
-    fiware_service: str = Header(default="", alias="Fiware-Service"),
-    authorization: str | None = Header(default=None, alias="Authorization"),
-) -> str:
-    """Extract tenant ID from NGSILD-Tenant, Fiware-Service, JWT, or cookie."""
-    import base64, json
-
-    from app.common.tenant_utils import normalize_tenant_id
-
-    if ngsild_tenant:
-        return normalize_tenant_id(ngsild_tenant)
-
-    # Fiware-Service is the FIWARE v2 equivalent used by the platform
-    if fiware_service:
-        return normalize_tenant_id(fiware_service)
-
-    # Try Bearer token from Authorization header
-    token = None
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ", 1)[1]
-
-    # Try nkz_token cookie (httpOnly, set by api-gateway on login)
-    if not token:
-        token = request.cookies.get("nkz_token")
-
-    if token:
-        try:
-            payload_b64 = token.split(".")[1]
-            payload_b64 += "=" * (4 - len(payload_b64) % 4)
-            payload = json.loads(base64.urlsafe_b64decode(payload_b64))
-            tenant_id = payload.get("tenant_id") or payload.get("tenant")
-            if tenant_id:
-                return normalize_tenant_id(str(tenant_id))
-        except Exception:
-            pass
-
-    raise HTTPException(
-        status_code=400,
-        detail="NGSILD-Tenant header is required, or a valid JWT with tenant_id claim",
-    )
+async def _get_existing_cumulative(tenant_id: str, parcel_id: str) -> float:
+    """Get the latest cumulative CO2 value from Orion-LD for a parcel."""
+    try:
+        prev = await query_entities(
+            entity_type="CarbonAssessment",
+            tenant_id=tenant_id,
+            query=f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}"',
+            attrs="co2SequesteredCumulative",
+            limit=1,
+        )
+        if prev:
+            props = {k: v.get("value") if isinstance(v, dict) and "value" in v else v
+                     for k, v in prev[0].items()
+                     if k not in ("id", "type", "@context")}
+            return float(props.get("co2SequesteredCumulative", 0))
+    except Exception:
+        pass
+    return 0.0
 
 
 def _build_assessment_response(
@@ -275,13 +252,14 @@ def _resolve_morph_type(crop_species: str) -> MorphologicalType:
 )
 async def get_assessment(
     entity_id: str,
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Get the latest CarbonAssessment entity from Orion-LD.
 
     If no assessment exists yet, returns 404 — the caller should POST
     to /calculate first.
     """
+    tenant_id = auth.tenant_id
     try:
         results = await query_entities(
             entity_type="CarbonAssessment",
@@ -354,14 +332,14 @@ async def get_assessment(
 async def calculate(
     entity_id: str,
     body: CalculateRequest,
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Run Tier 1 (always) + Tier 2/3 if sufficient data.
 
     Fetches real vegetation index from vegetation-prime and weather from
     weather-worker or tenant sensors depending on configuration.
     """
-    _tid = body.tenant_id or tenant_id
+    _tid = auth.tenant_id
     calc_date = body.date or date.today()
     doy = doy_from_date(calc_date)
     species = (body.crop_species or "unknown").lower()
@@ -574,7 +552,10 @@ async def calculate(
             gpp_daily=tier1_out.gpp_gC_m2_day,
             npp_daily=tier1_out.npp_total_gC_m2_day,
             co2_sequestered_daily=tier1_out.co2_seq_kgCO2_ha_day,
-            co2_sequestered_cumulative=tier1_out.co2_seq_kgCO2_ha_day,
+            co2_sequestered_cumulative=(
+                await _get_existing_cumulative(_tid, entity_id)
+                + tier1_out.co2_seq_kgCO2_ha_day
+            ),
             agb_dry=tier1_out.agb_dry_tDM_ha,
             bgb_dry=tier1_out.bgb_dry_tDM_ha,
             soil_carbon_delta=soc_delta,
@@ -651,9 +632,10 @@ async def calculate(
 async def get_assessment_history(
     entity_id: str,
     limit: int = Query(default=10, ge=1, le=100),
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """List historical CarbonAssessment entities for a parcel."""
+    tenant_id = auth.tenant_id
     try:
         results = await query_entities(
             entity_type="CarbonAssessment",
@@ -712,13 +694,14 @@ async def get_tier_info(
     has_soil_lab: bool = Query(default=False),
     has_sensors: bool = Query(default=False),
     has_fertilization: bool = Query(default=False),
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Analyze available data and report current tier + gaps.
 
     Query params let the frontend pass what it knows about data availability.
     Phase 6 adds automatic detection via platform service queries.
     """
+    tenant_id = auth.tenant_id
     species_ok = crop_species is not None and crop_species.lower() in LUE_BY_SPECIES
 
     avail = DataAvailability(
@@ -759,13 +742,14 @@ async def get_tier_info(
 async def get_projection(
     entity_id: str,
     years: int = Query(default=20, ge=1, le=50),
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Run a RothC 20-year (default) projection.
 
     Uses default soil params and climate normals. Provide management
     data via POST management endpoint to refine.
     """
+    tenant_id = auth.tenant_id
     # Default soil parameters for projection
     clay_pct = 20.0
     soc_initial = 50.0
@@ -859,9 +843,10 @@ async def get_projection(
     response_model=list[SensorInfo],
 )
 async def list_sensors(
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """List tenant's AgriSensor entities available as weather data sources."""
+    tenant_id = auth.tenant_id
     sensors = await list_tenant_sensors(tenant_id)
     return [
         SensorInfo(
@@ -886,13 +871,14 @@ async def list_sensors(
 )
 async def get_tenant_summary(
     year: Optional[int] = Query(default=None),
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Aggregate carbon assessments across all parcels for the tenant.
 
     Queries all AgriParcel entities in Orion-LD, fetches their latest
     CarbonAssessment, and builds a summary table with yearly aggregation.
     """
+    tenant_id = auth.tenant_id
     logger.info("Summary requested for tenant=%s year=%s", tenant_id, year)
     # 1. Fetch all AgriParcel entities for the tenant
     parcels: list[dict] = []
@@ -906,18 +892,6 @@ async def get_tenant_summary(
         logger.exception("Error querying AgriParcel for tenant %s", tenant_id)
         raise HTTPException(status_code=500, detail=str(exc))
 
-    # Fallback: also include entities without tenant isolation (local=true)
-    if len(parcels) == 0:
-        try:
-            parcels = await query_entities(
-                entity_type="AgriParcel",
-                tenant_id=tenant_id,
-                limit=500,
-                local=True,
-            )
-            logger.info("Falling back to local scope, found %d parcels", len(parcels))
-        except Exception:
-            pass
 
     if not parcels:
         return TierSummaryResponse(tenant_id=tenant_id, parcels=[], yearly_aggregations=[])
