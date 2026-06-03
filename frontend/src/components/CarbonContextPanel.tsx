@@ -2,11 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation, useViewerOptional } from '@nekazari/sdk';
 import { useParams } from 'react-router-dom';
 import { EmptyState, Button, Spinner } from '@nekazari/ui-kit';
-import { fetchAssessment, fetchTierInfo, triggerCalculation } from '../api/carbonApi';
+import { fetchAssessment, fetchTierInfo, triggerCalculation, fetchManagement } from '../api/carbonApi';
 import type { CarbonAssessment, TierInfo } from '../api/carbonApi';
 import CarbonTierBadge from './CarbonTierBadge';
 import CarbonGapList from './CarbonGapList';
-import { getManagementData } from '../hooks/useCarbonState';
 
 interface CarbonContextPanelProps {
   entityId?: string;
@@ -70,7 +69,8 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
     setCalculating(true);
     setError(null);
     try {
-      const mgmt = getManagementData();
+      let mgmt = undefined;
+      try { mgmt = await fetchManagement(entityId); } catch {}
       const result = await triggerCalculation(entityId, {
         management: mgmt || undefined,
       });

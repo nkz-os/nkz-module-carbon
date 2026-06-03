@@ -17,9 +17,10 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.common.auth import AuthContext, require_auth
+from app.common.tier_check import check_tier
 from app.models.schemas import (
     CalculateRequest,
     CarbonAssessmentResponse,
@@ -333,6 +334,7 @@ async def calculate(
     entity_id: str,
     body: CalculateRequest,
     auth: AuthContext = require_auth(),
+    _tier_ok: None = Depends(check_tier),
 ):
     """Run Tier 1 (always) + Tier 2/3 if sufficient data.
 

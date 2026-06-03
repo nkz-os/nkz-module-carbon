@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 import { useParams } from 'react-router-dom';
-import { fetchAssessment, fetchTierInfo, fetchProjection, triggerCalculation } from '../api/carbonApi';
+import { fetchAssessment, fetchTierInfo, fetchProjection, triggerCalculation, fetchManagement } from '../api/carbonApi';
 import type { CarbonAssessment, TierInfo, ProjectionData } from '../api/carbonApi';
 import CarbonTierBadge from './CarbonTierBadge';
 import CarbonGapList from './CarbonGapList';
 import CarbonProjectionChart from './CarbonProjectionChart';
 import CarbonManagementForm from './CarbonManagementForm';
 import CarbonMRVExport from './CarbonMRVExport';
-import { getManagementData } from '../hooks/useCarbonState';
+
 
 interface CarbonBottomPanelProps {
   entityId?: string;
@@ -75,8 +75,11 @@ const CarbonBottomPanel: React.FC<CarbonBottomPanelProps> = (props) => {
     setCalculating(true);
     setError(null);
     try {
-      const mgmt = getManagementData();
-      const result = await triggerCalculation(entityId, { management: mgmt || undefined });
+      let mgmtData = undefined;
+      try {
+        mgmtData = await fetchManagement(entityId);
+      } catch { /* no management saved yet */ }
+      const result = await triggerCalculation(entityId, { management: mgmtData });
       setAssessment(result);
       const proj = await fetchProjection(entityId).catch(() => null);
       if (proj) setProjection(proj);

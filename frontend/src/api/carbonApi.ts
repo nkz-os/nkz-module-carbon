@@ -135,6 +135,10 @@ export async function fetchTierInfo(entityId: string): Promise<TierInfo> {
   return apiFetch<TierInfo>(`/parcels/${encodeURIComponent(entityId)}/tier-info`);
 }
 
+export async function fetchManagement(entityId: string): Promise<ManagementData> {
+  return apiFetch<ManagementData>(`/parcels/${encodeURIComponent(entityId)}/management`);
+}
+
 export async function saveManagement(
   entityId: string,
   data: ManagementData,

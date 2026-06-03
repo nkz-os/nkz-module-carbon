@@ -10,6 +10,7 @@ Endpoints:
 """
 
 import logging
+import os
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
@@ -18,6 +19,21 @@ from app.models.schemas import ErrorResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/carbon", tags=["webhooks"])
+
+WEBHOOK_API_KEY = os.getenv("CARBON_WEBHOOK_API_KEY", "")
+
+
+def _verify_webhook_auth(request: Request):
+    """Verify webhook call via shared API key."""
+    if not WEBHOOK_API_KEY:
+        logger.warning("CARBON_WEBHOOK_API_KEY not set — accepting all webhook calls")
+        return
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing Bearer token")
+    token = auth_header.split(" ", 1)[1]
+    if token != WEBHOOK_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid API key")
 
 
 async def _recalculate_from_vi(entity_id: str, vi_value: float, tenant_id: str):
@@ -58,6 +74,7 @@ async def vegetation_index_updated(
       "notifiedAt": "..."
     }
     """
+    _verify_webhook_auth(request)
     try:
         payload = await request.json()
     except Exception as exc:

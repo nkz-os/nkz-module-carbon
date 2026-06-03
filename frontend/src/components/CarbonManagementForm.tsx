@@ -3,7 +3,6 @@ import { useTranslation } from '@nekazari/sdk';
 import { Select } from '@nekazari/ui-kit';
 import { saveManagement, fetchAvailableSensors } from '../api/carbonApi';
 import type { ManagementData, SensorInfo } from '../api/carbonApi';
-import { setManagementData } from '../hooks/useCarbonState';
 
 interface CarbonManagementFormProps {
   entityId: string;
@@ -92,7 +91,6 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
         weather_sensor_id: weatherSource === 'sensor' ? weatherSensorId : undefined,
       };
       await saveManagement(entityId, data);
-      setManagementData(data);  // share with context-panel for calculate
       setSaveState('saved');
       onSaved?.();
       // Reset save state after 2s
