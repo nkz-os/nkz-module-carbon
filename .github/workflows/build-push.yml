@@ -42,48 +42,16 @@ jobs:
           push: true
           tags: ghcr.io/nkz-os/nkz-module-carbon/carbon-backend:latest
 
-  # Frontend (MF2 remote) publish via OIDC-authenticated endpoint.
-  # Directly implements the publish + verify logic (bypassing reusable workflow
-  # to isolate startup_failure issue).
+  # Frontend (MF2 remote) publish via OIDC-authenticated canonical workflow.
+  # The reusable workflow requests a GitHub OIDC JWT, sends it to api-gateway
+  # which validates it against GitHub's JWKS before forwarding to entity-manager.
   publish-module:
     name: Publish Module (frontend)
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
-    env:
-      VITE_API_URL: https://nkz.robotika.cloud
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: "22" }
-      - uses: pnpm/action-setup@v4
-        with: { version: 9 }
-      - name: Get GitHub OIDC token
-        run: |
-          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=nkz-publish" | jq -r .value)
-          echo "OIDC_TOKEN=${OIDC_TOKEN}" >> $GITHUB_ENV
-          echo "::notice::OIDC token obtained ($(echo $OIDC_TOKEN | wc -c) bytes)"
-      - name: Create dummy dist (skip broken carbon build)
-        run: |
-          mkdir -p frontend/dist
-          echo '{"id":"carbon","version":"0.0.1","hostApiVersion":"^2.0.0"}' > frontend/dist/manifest.json
-          echo '{}' > frontend/dist/mf-manifest.json
-      - name: Publish to entity-manager
-        env:
-          SECRET: ${{ secrets.INTERNAL_SERVICE_SECRET }}
-        working-directory: frontend
-        run: |
-          set -euo pipefail
-          SHA=$(echo "${{ github.sha }}" | cut -c1-40)
-          args=$(cd dist && find . -type f -printf '-F file=@%p;filename=%P ')
-          code=$(cd dist && curl -sS -o /tmp/pub.json -w '%{http_code}' \
-                 -H "X-Internal-Service-Secret: $SECRET" \
-                 -H "X-OIDC-Token: $OIDC_TOKEN" \
-                 -F "version_hash=$SHA" $args \
-                 "https://nkz.robotika.cloud/api/internal/modules/carbon/publish")
-          echo "publish HTTP $code"; cat /tmp/pub.json; echo
-          case "$code" in 200|201) ;; *) echo "::error::publish failed (HTTP $code)"; exit 1;; esac
+    uses: nkz-os/nkz/.github/workflows/_publish-module.yml@main
+    with:
+      module_id: carbon
+      working_dir: frontend
+    secrets:
+      INTERNAL_SERVICE_SECRET: ${{ secrets.INTERNAL_SERVICE_SECRET }}
