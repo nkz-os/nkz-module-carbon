@@ -1,4 +1,6 @@
-const API_BASE = 'https://nkz.robotika.cloud/api/carbon';
+const API_BASE = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/carbon`
+  : '/api/carbon';
 
 export interface CarbonValue {
   value: number;
@@ -137,16 +139,11 @@ export async function saveManagement(
   entityId: string,
   data: ManagementData,
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/parcels/${encodeURIComponent(entityId)}/management`, {
+  await apiFetch(`/parcels/${encodeURIComponent(entityId)}/management`, {
     method: 'POST',
-    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Management save failed: ${res.status} ${body}`);
-  }
 }
 
 export async function triggerCalculation(

@@ -198,7 +198,7 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
           {t('soilCarbonDelta')}:{' '}
           <strong style={{ color: finalDelta > 0 ? '#059669' : '#DC2626' }}>
             {finalDelta > 0 ? '+' : ''}
-            {finalDelta.toFixed(2)} tC/ha/yr
+            {finalDelta.toFixed(2)} {t('units.tC_ha_yr')}
           </strong>
         </div>
       )}

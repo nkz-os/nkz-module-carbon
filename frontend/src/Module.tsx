@@ -17,4 +17,10 @@ export default defineModule({
   main: MainPage,
   api: { basePath: '/api/carbon' },
   slots: moduleSlots as never,
+  data: {
+    entities: ['CarbonAssessment', 'CarbonStock', 'BaselineScenario',
+               'ProjectScenario', 'CarbonCalculationRun', 'ManagementPractice'],
+    timeseries: ['carbonFixationRateDaily', 'co2SequesteredCumulative',
+                 'gppDaily', 'nppDaily', 'co2eqNetDaily', 'co2eqNetCumulative'],
+  },
 });

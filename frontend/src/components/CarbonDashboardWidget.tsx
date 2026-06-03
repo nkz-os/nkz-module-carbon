@@ -5,6 +5,7 @@ import { MetricCard, MetricGrid, Spinner } from '@nekazari/ui-kit';
 import { fetchAssessment } from '../api/carbonApi';
 import type { CarbonAssessment } from '../api/carbonApi';
 import CarbonTierBadge from './CarbonTierBadge';
+import { colors } from './styles';
 
 interface CarbonDashboardWidgetProps {
   entityId?: string;
@@ -58,7 +59,7 @@ const CarbonDashboardWidget: React.FC<CarbonDashboardWidgetProps> = (props) => {
 
   if (error) {
     return (
-      <div style={{ padding: '16px', textAlign: 'center', color: '#DC2626', fontSize: '13px' }}>
+      <div style={{ padding: '16px', textAlign: 'center', color: colors.danger, fontSize: '13px' }}>
         {error}
       </div>
     );
@@ -66,7 +67,7 @@ const CarbonDashboardWidget: React.FC<CarbonDashboardWidgetProps> = (props) => {
 
   if (!assessment) {
     return (
-      <div style={{ padding: '16px', textAlign: 'center', color: '#6B7280', fontSize: '13px' }}>
+      <div style={{ padding: '16px', textAlign: 'center', color: colors.textSecondary, fontSize: '13px' }}>
         {t('no_data')}
       </div>
     );
@@ -89,7 +90,7 @@ const CarbonDashboardWidget: React.FC<CarbonDashboardWidgetProps> = (props) => {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-        <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{t('title')}</span>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: colors.textPrimary }}>{t('title')}</span>
         <CarbonTierBadge tier={assessment.tier} confidence={assessment.confidence} compact />
       </div>
 
@@ -116,7 +117,7 @@ const CarbonDashboardWidget: React.FC<CarbonDashboardWidgetProps> = (props) => {
       </MetricGrid>
 
       {co2Cumulative.value > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#059669' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: colors.accentBase }}>
           <svg width="40" height="16" viewBox="0 0 40 16" fill="none">
             <path d="M0 14L8 10L16 12L24 6L32 8L40 2" stroke="#059669" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
           </svg>

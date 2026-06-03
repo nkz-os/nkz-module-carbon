@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import CarbonBottomPanel from './CarbonBottomPanel';
 import CarbonTierBadge from './CarbonTierBadge';
 import { fetchTenantSummary } from '../api/carbonApi';
+import { colors } from './styles';
 import type { ParcelSummary, YearlyAggregation } from '../api/carbonApi';
 
 interface SummaryRow extends ParcelSummary {
@@ -73,7 +74,7 @@ const CarbonPage: React.FC = () => {
           style={{
             background: 'none',
             border: 'none',
-            color: 'var(--nkz-accent-base, #059669)',
+            color: colors.accentBase,
             cursor: 'pointer',
             fontWeight: 500,
             fontSize: '13px',
@@ -92,12 +93,14 @@ const CarbonPage: React.FC = () => {
     {
       accessorKey: 'co2_captured_cumulative' as const,
       header: t('co2_captured'),
-      cell: (info: { getValue: () => number }) => `${info.getValue().toFixed(1)} kgCO₂/ha`,
+      cell: (info: { getValue: () => number }) =>
+        `${info.getValue().toFixed(1)} ${t('units.kgCO2_ha_day')}`,
     },
     {
       accessorKey: 'carbon_stock_total' as const,
       header: t('carbon_stock'),
-      cell: (info: { getValue: () => number }) => `${info.getValue().toFixed(2)} tC/ha`,
+      cell: (info: { getValue: () => number }) =>
+        `${info.getValue().toFixed(2)} ${t('units.tC_ha')}`,
     },
     {
       accessorKey: 'tier' as const,
@@ -125,12 +128,14 @@ const CarbonPage: React.FC = () => {
     {
       accessorKey: 'total_co2_captured_kg' as const,
       header: t('total_co2_all_parcels'),
-      cell: (info: { getValue: () => number }) => `${info.getValue().toFixed(1)} kgCO₂`,
+      cell: (info: { getValue: () => number }) =>
+        `${info.getValue().toFixed(1)} ${t('units.kgCO2_ha_day')}`,
     },
     {
       accessorKey: 'avg_carbon_stock_tC_ha' as const,
       header: t('avg_carbon_stock'),
-      cell: (info: { getValue: () => number }) => `${info.getValue().toFixed(2)} tC/ha`,
+      cell: (info: { getValue: () => number }) =>
+        `${info.getValue().toFixed(2)} ${t('units.tC_ha')}`,
     },
     { accessorKey: 'parcel_count' as const, header: t('active_parcels') },
   ];
@@ -139,7 +144,7 @@ const CarbonPage: React.FC = () => {
   if (loading) {
     return (
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '24px 16px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#111827', marginBottom: '8px' }}>{t('title')}</h1>
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: colors.textPrimary, marginBottom: '8px' }}>{t('title')}</h1>
         <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
           <Spinner size="lg" />
         </div>
@@ -151,7 +156,7 @@ const CarbonPage: React.FC = () => {
   if (error && summary.length === 0) {
     return (
       <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '24px 16px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#111827', marginBottom: '8px' }}>{t('title')}</h1>
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: colors.textPrimary, marginBottom: '8px' }}>{t('title')}</h1>
         <EmptyState
           title={t('error_loading')}
           description={error}
@@ -163,10 +168,10 @@ const CarbonPage: React.FC = () => {
 
   return (
     <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '24px 16px', minHeight: '100vh' }}>
-      <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#111827', marginBottom: '8px' }}>
+      <h1 style={{ fontSize: '24px', fontWeight: 700, color: colors.textPrimary, marginBottom: '8px' }}>
         {t('summary_title')}
       </h1>
-      <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '24px' }}>
+      <p style={{ fontSize: '14px', color: colors.textSecondary, marginBottom: '24px' }}>
         {t('tier_description')}
       </p>
 
@@ -175,7 +180,7 @@ const CarbonPage: React.FC = () => {
         <Panel>
           <Panel.Body>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <label style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: colors.textPrimary }}>
                 {t('select_parcel')}
               </label>
               <Select
@@ -207,12 +212,12 @@ const CarbonPage: React.FC = () => {
         <MetricCard
           label={t('total_co2_all_parcels')}
           value={totalCo2.toFixed(1)}
-          unit="kgCO₂/ha"
+          unit={t('units.kgCO2_ha_day')}
         />
         <MetricCard
           label={t('avg_carbon_stock')}
           value={avgStock.toFixed(2)}
-          unit="tC/ha"
+          unit={t('units.tC_ha')}
         />
         <MetricCard
           label={t('active_parcels')}
@@ -248,7 +253,7 @@ const CarbonPage: React.FC = () => {
       {/* Yearly aggregation table */}
       {yearlyData.length > 0 && (
         <div style={{ marginBottom: '32px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#111827', marginBottom: '12px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 600, color: colors.textPrimary, marginBottom: '12px' }}>
             {t('yearly_aggregation')}
           </h2>
           <DataTable
