@@ -53,6 +53,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      VITE_API_URL: https://nkz.robotika.cloud
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -62,7 +64,10 @@ jobs:
       - name: Install deps
         run: cd frontend && pnpm install --frozen-lockfile
       - name: Build module
-        run: cd frontend && VITE_API_URL=https://nkz.robotika.cloud NKZ_VERSION_HASH=${{ github.sha }} pnpm run build:module
+        run: cd frontend && pnpm run build:module
+        env:
+          NKZ_VERSION_HASH: ${{ github.sha }}
+          VITE_API_URL: https://nkz.robotika.cloud
       - name: Get GitHub OIDC token
         run: |
           OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
