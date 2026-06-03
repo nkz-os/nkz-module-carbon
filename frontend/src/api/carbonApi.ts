@@ -1,5 +1,11 @@
-const API_BASE = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/carbon`
+// Resolve API base URL safely for both browser (import.meta.env) and
+// Node.js CJS manifest-emit context (process.env).
+const API_BASE = (typeof process !== 'undefined' && process.env?.VITE_API_URL)
+  || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL)
+  ? `${
+      (typeof process !== 'undefined' && process.env?.VITE_API_URL)
+      || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL)
+    }/api/carbon`
   : '/api/carbon';
 
 export interface CarbonValue {
