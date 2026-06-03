@@ -3,8 +3,9 @@
 import logging
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, HTTPException
 
+from app.common.auth import AuthContext, require_auth
 from app.services.mrv_reporter import (
     generate_vm0042_report,
     generate_gold_standard_report,
@@ -18,17 +19,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/carbon/parcels/{entity_id}/mrv", tags=["MRV"])
 
 
-def _get_tenant_id(ngsild_tenant: str = Header(default="", alias="NGSILD-Tenant")) -> str:
-    if not ngsild_tenant:
-        raise HTTPException(status_code=400, detail="NGSILD-Tenant header is required")
-    return ngsild_tenant
-
-
 @router.get("/report")
 async def get_mrv_report(
     entity_id: str,
     standard: str = "VM0042",
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Generate an MRV report for a parcel.
 
@@ -36,6 +31,7 @@ async def get_mrv_report(
     baseline/project scenarios. Returns a structured report with
     net emission reductions, verified credits, and buffer pool.
     """
+    tenant_id = auth.tenant_id
     # 1. Load latest assessment
     try:
         assessments = await query_entities(
