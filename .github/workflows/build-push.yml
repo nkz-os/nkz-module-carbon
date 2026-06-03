@@ -65,6 +65,7 @@ jobs:
         run: cd frontend && pnpm run build:module
         env:
           NKZ_VERSION_HASH: ${{ github.sha }}
+          VITE_API_URL: https://nkz.robotika.cloud
       - name: Get GitHub OIDC token
         run: |
           OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
