@@ -64,7 +64,7 @@ jobs:
       - name: Get GitHub OIDC token
         run: |
           OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=nkz-publish")
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=nkz-publish" | jq -r .value)
           echo "OIDC_TOKEN=${OIDC_TOKEN}" >> $GITHUB_ENV
           echo "::notice::OIDC token obtained ($(echo $OIDC_TOKEN | wc -c) bytes)"
       - name: Create dummy dist (skip broken carbon build)
