@@ -13,8 +13,9 @@ Endpoints:
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, HTTPException
 
+from app.common.auth import AuthContext, require_auth
 from app.models.management import ManagementInput
 
 logger = logging.getLogger(__name__)
@@ -25,13 +26,6 @@ router = APIRouter(prefix="/api/carbon", tags=["management"])
 _management_store: dict[str, dict[str, ManagementInput]] = {}
 
 
-def _get_tenant_id(ngsild_tenant: str = Header(default="", alias="NGSILD-Tenant")) -> str:
-    if not ngsild_tenant:
-        raise HTTPException(status_code=400, detail="NGSILD-Tenant header is required")
-    from app.common.tenant_utils import normalize_tenant_id
-    return normalize_tenant_id(ngsild_tenant)
-
-
 @router.post(
     "/parcels/{entity_id}/management",
     response_model=ManagementInput,
@@ -40,13 +34,14 @@ def _get_tenant_id(ngsild_tenant: str = Header(default="", alias="NGSILD-Tenant"
 async def save_management(
     entity_id: str,
     body: ManagementInput,
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Save farmer-declared management practices for a parcel.
 
     Replaces any previously stored management data for this
     tenant+parcel pair.
     """
+    tenant_id = auth.tenant_id
     if tenant_id not in _management_store:
         _management_store[tenant_id] = {}
     _management_store[tenant_id][entity_id] = body
@@ -64,12 +59,13 @@ async def save_management(
 )
 async def get_management(
     entity_id: str,
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Get the currently stored management data for a parcel.
 
     Returns 404 if no management data has been saved yet.
     """
+    tenant_id = auth.tenant_id
     tenant_store = _management_store.get(tenant_id, {})
     if entity_id not in tenant_store:
         raise HTTPException(
