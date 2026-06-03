@@ -61,6 +61,12 @@ jobs:
         with: { node-version: "22" }
       - uses: pnpm/action-setup@v4
         with: { version: 9 }
+      - name: Get GitHub OIDC token
+        run: |
+          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=nkz-publish")
+          echo "OIDC_TOKEN=${OIDC_TOKEN}" >> $GITHUB_ENV
+          echo "::notice::OIDC token obtained ($(echo $OIDC_TOKEN | wc -c) bytes)"
       - name: Install deps
         run: cd frontend && pnpm install --frozen-lockfile
       - name: Build module
@@ -68,11 +74,6 @@ jobs:
         env:
           NKZ_VERSION_HASH: ${{ github.sha }}
           VITE_API_URL: https://nkz.robotika.cloud
-      - name: Get GitHub OIDC token
-        run: |
-          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=nkz-publish")
-          echo "OIDC_TOKEN=${OIDC_TOKEN}" >> $GITHUB_ENV
       - name: Publish to entity-manager
         env:
           SECRET: ${{ secrets.INTERNAL_SERVICE_SECRET }}
