@@ -1,15 +1,16 @@
 """Client for querying CropHealthAssessment entities from Orion-LD."""
 
 import logging
+import os
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional
 
 import httpx
 
-from app.ngsild.client import query_entities, ORION_URL
-
 logger = logging.getLogger(__name__)
+
+ORION_URL = os.getenv("FIWARE_CONTEXT_BROKER_URL", "http://orion-ld-service:1026")
 
 
 @dataclass

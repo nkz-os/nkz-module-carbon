@@ -20,7 +20,7 @@ from fastapi.responses import Response
 
 from app.common.auth import require_tenant_header
 from app.models.schemas import ErrorResponse
-from app.ngsild.client import query_entities
+from app.common.orion import query_entities
 
 logger = logging.getLogger(__name__)
 

@@ -65,7 +65,7 @@ from app.services.data_resolver import (
 from app.services.spectral import MorphologicalType, VegetationIndex, select_index
 from app.services.solar_geometry import clear_sky_par_MJ_m2_day, doy_from_date
 from app.services.units import C_TO_CO2
-from app.ngsild.client import upsert_entity, query_entities, get_entity
+from app.common.orion import upsert_entity, query_entities, get_entity
 from app.ngsild.entities import build_carbon_assessment, build_carbon_stock
 from app.db.database import insert_carbon_calculation
 from app.platform.weather_client import (

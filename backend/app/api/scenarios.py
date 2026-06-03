@@ -30,7 +30,7 @@ from app.models.schemas import (
 )
 from app.services.carbon_engine import Tier1Input, calculate_tier1
 from app.services.roth_c_model import init_pools_weihermuller, run_rothc_monthly
-from app.ngsild.client import upsert_entity, query_entities, get_entity
+from app.common.orion import upsert_entity, query_entities, get_entity
 from app.ngsild.scenarios import (
     build_baseline_scenario,
     build_project_scenario,

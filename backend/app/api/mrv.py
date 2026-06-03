@@ -11,7 +11,7 @@ from app.services.mrv_reporter import (
     generate_gold_standard_report,
     report_to_dict,
 )
-from app.ngsild.client import query_entities
+from app.common.orion import query_entities
 from app.models.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)
