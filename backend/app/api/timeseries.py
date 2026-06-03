@@ -1,15 +1,11 @@
 """Arrow IPC timeseries endpoints for DataHub integration.
 
-Provides two endpoints:
+Provides:
 
   GET /api/carbon/timeseries/entities/{entity_id}/data
       Arrow IPC stream for a single entity's carbon time series.
 
-  POST /api/carbon/timeseries/internal/export-arrow
-      Multi-series Arrow export used by DataHub scatter-gather.
-      Replaces the stub in internal.py once carbon readings are available.
-
-Both return `application/vnd.apache.arrow.stream` media type.
+Returns `application/vnd.apache.arrow.stream` media type.
 """
 
 import io
@@ -19,10 +15,10 @@ from typing import Optional
 
 import pyarrow as pa
 import pyarrow.ipc
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
-from pydantic import BaseModel
 
+from app.common.auth import require_tenant_header
 from app.models.schemas import ErrorResponse
 from app.ngsild.client import query_entities
 
@@ -45,20 +41,6 @@ ATTRIBUTE_TO_COLUMN: dict[str, str] = {
     "co2eqNetDaily": "co2eq_net_daily",
     "co2eqNetCumulative": "co2eq_net_cumulative",
 }
-
-
-class SeriesRequest(BaseModel):
-    """Single time series request in a multi-export."""
-    entity_id: str
-    attribute: str
-
-
-class ArrowExportRequest(BaseModel):
-    """Multi-series export request body."""
-    series: list[SeriesRequest]
-    start_time: str
-    end_time: str
-    resolution: int = 1000
 
 
 # Schema for single-series Arrow output
@@ -132,14 +114,6 @@ def _empty_arrow() -> bytes:
     return sink.getvalue().to_pybytes()
 
 
-def _get_tenant_id(
-    ngsild_tenant: str = Header(default="", alias="NGSILD-Tenant"),
-) -> str:
-    if not ngsild_tenant:
-        raise HTTPException(status_code=400, detail="NGSILD-Tenant header is required")
-    return ngsild_tenant
-
-
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -155,7 +129,7 @@ def _get_tenant_id(
 async def get_entity_timeseries(
     entity_id: str,
     attribute: str = Query(default="gppDaily", description="Attribute name"),
-    tenant_id: str = Depends(_get_tenant_id),
+    tenant_id: str = require_tenant_header,
     limit: int = Query(default=100, ge=1, le=1000),
 ):
     """Arrow IPC stream of time-series data for a single entity.
@@ -179,19 +153,4 @@ async def get_entity_timeseries(
         return Response(content=_empty_arrow(), media_type=ARROW_MIME)
 
 
-@router.post(
-    "/timeseries/internal/export-arrow",
-    responses={
-        200: {"content": {ARROW_MIME: {}}},
-    },
-    include_in_schema=False,  # Internal: not shown in public docs
-)
-async def export_arrow(body: ArrowExportRequest):
-    """Multi-series Arrow export for DataHub scatter-gather.
 
-    Replaces the legacy internal.py stub when carbon_readings table
-    is available. Currently returns empty Arrow tables.
-    """
-    # TODO: Replace with real DB-backed multi-series query once
-    #       carbon_readings table is populated.
-    return Response(content=_empty_arrow(), media_type=ARROW_MIME)
