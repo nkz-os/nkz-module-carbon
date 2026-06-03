@@ -19,8 +19,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, HTTPException
 
+from app.common.auth import AuthContext, require_auth
 from app.models.schemas import (
     CalculationRunResponse,
     CreateBaselineRequest,
@@ -42,12 +43,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/carbon", tags=["scenarios"])
 
 
-def _get_tenant_id(ngsild_tenant: str = Header(default="", alias="NGSILD-Tenant")) -> str:
-    if not ngsild_tenant:
-        raise HTTPException(status_code=400, detail="NGSILD-Tenant header is required")
-    return ngsild_tenant
-
-
 def _generate_scenario_id(prefix: str, tenant_id: str, parcel_id: str) -> str:
     """Generate a unique scenario entity ID."""
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
@@ -67,13 +62,14 @@ def _generate_scenario_id(prefix: str, tenant_id: str, parcel_id: str) -> str:
 async def create_baseline(
     entity_id: str,
     body: CreateBaselineRequest,
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Create a baseline scenario for a parcel.
 
     A baseline scenario represents the "business as usual" management.
     It is persisted as a BaselineScenario NGSI-LD entity.
     """
+    tenant_id = auth.tenant_id
     calculation_run_id = f"urn:ngsi-ld:CarbonCalculationRun:{tenant_id}:{entity_id}-baseline"
 
     entity = build_baseline_scenario(
@@ -115,7 +111,7 @@ async def create_baseline(
 async def create_project(
     entity_id: str,
     body: CreateProjectRequest,
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Create a project scenario referencing a baseline.
 
@@ -123,6 +119,7 @@ async def create_project(
     (e.g., transition to no-till + cover crops). It references the
     baseline scenario via baseline_scenario_id.
     """
+    tenant_id = auth.tenant_id
     # Verify baseline scenario exists
     if body.baseline_scenario_id:
         existing = await get_entity(body.baseline_scenario_id, tenant_id)
@@ -173,9 +170,10 @@ async def create_project(
 )
 async def list_scenarios(
     entity_id: str,
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """List all scenarios (baseline + project) for a parcel."""
+    tenant_id = auth.tenant_id
     scenario_types = ["BaselineScenario", "ProjectScenario"]
     all_scenarios: list[ScenarioResponse] = []
 
@@ -222,9 +220,10 @@ async def list_scenarios(
 async def get_scenario(
     entity_id: str,
     scenario_id: str,
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Get a single scenario by entity ID."""
+    tenant_id = auth.tenant_id
     try:
         entity = await get_entity(scenario_id, tenant_id)
     except Exception as exc:
@@ -263,9 +262,10 @@ async def get_scenario(
 async def list_calculation_runs(
     entity_id: str,
     scenario_id: str,
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """List CarbonCalculationRun entities associated with a scenario."""
+    tenant_id = auth.tenant_id
     try:
         results = await query_entities(
             entity_type="CarbonCalculationRun",
@@ -308,13 +308,14 @@ async def list_calculation_runs(
 async def recalculate_scenario(
     entity_id: str,
     scenario_id: str,
-    tenant_id: str = Depends(_get_tenant_id),
+    auth: AuthContext = require_auth(),
 ):
     """Re-run the carbon engine for an existing scenario.
 
     Fetches the scenario management params and runs Tier 1 calculation.
     The run is persisted as a CarbonCalculationRun entity.
     """
+    tenant_id = auth.tenant_id
     # Fetch the scenario entity to get management params
     entity = await get_entity(scenario_id, tenant_id)
     if entity is None:
