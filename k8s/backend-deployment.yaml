@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: carbon-api
-          image: ghcr.io/nkz-os/nkz-module-carbon/carbon-backend:latest
+          image: ghcr.io/nkz-os/nkz-module-carbon/carbon-backend@sha256:103d07f2bd57172bd8a5021e02b2d50c87ccca81377087e1f3ecfb30af34a7b8
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
