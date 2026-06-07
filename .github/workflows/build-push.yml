@@ -56,5 +56,6 @@ jobs:
     with:
       module_id: carbon
       working_dir: frontend
+      package_json_file: frontend/package.json
     secrets:
       INTERNAL_SERVICE_SECRET: ${{ secrets.INTERNAL_SERVICE_SECRET }}
