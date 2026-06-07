@@ -182,7 +182,7 @@ async def list_scenarios(
             results = await query_entities(
                 entity_type=sc_type,
                 tenant_id=tenant_id,
-                query=f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
+                query=f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
                 limit=50,
             )
         except Exception as exc:
@@ -192,7 +192,7 @@ async def list_scenarios(
         for ent in results:
             props = {k: v.get("value") if isinstance(v, dict) and "value" in v else v
                      for k, v in ent.items()
-                     if k not in ("id", "type", "@context", "refAgriParcel")}
+                     if k not in ("id", "type", "@context", "hasAgriParcel")}
             all_scenarios.append(ScenarioResponse(
                 scenario_id=ent["id"],
                 scenario_type=sc_type,
@@ -236,7 +236,7 @@ async def get_scenario(
     sc_type = entity.get("type", "Unknown")
     props = {k: v.get("value") if isinstance(v, dict) and "value" in v else v
              for k, v in entity.items()
-             if k not in ("id", "type", "@context", "refAgriParcel")}
+             if k not in ("id", "type", "@context", "hasAgriParcel")}
 
     return ScenarioResponse(
         scenario_id=entity["id"],
@@ -323,7 +323,7 @@ async def recalculate_scenario(
 
     props = {k: v.get("value") if isinstance(v, dict) and "value" in v else v
              for k, v in entity.items()
-             if k not in ("id", "type", "@context", "refAgriParcel")}
+             if k not in ("id", "type", "@context", "hasAgriParcel")}
     management_params = props.get("managementParameters", {})
 
     # Run a quick Tier 1 calculation

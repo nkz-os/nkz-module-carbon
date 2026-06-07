@@ -31,7 +31,7 @@ def build_baseline_scenario(
         "id": scenario_id,
         "type": "BaselineScenario",
         "@context": _context(),
-        "refAgriParcel": {
+        "hasAgriParcel": {
             "type": "Relationship",
             "object": f"urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}",
         },
@@ -64,7 +64,7 @@ def build_project_scenario(
         "id": scenario_id,
         "type": "ProjectScenario",
         "@context": _context(),
-        "refAgriParcel": {
+        "hasAgriParcel": {
             "type": "Relationship",
             "object": f"urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}",
         },

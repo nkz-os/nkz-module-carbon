@@ -145,7 +145,7 @@ async def _get_existing_cumulative(tenant_id: str, parcel_id: str) -> float:
         prev = await query_entities(
             entity_type="CarbonAssessment",
             tenant_id=tenant_id,
-            query=f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}"',
+            query=f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}"',
             attrs="co2SequesteredCumulative",
             limit=1,
         )
@@ -265,7 +265,7 @@ async def get_assessment(
         results = await query_entities(
             entity_type="CarbonAssessment",
             tenant_id=tenant_id,
-            query=f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
+            query=f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
             attrs="assessmentDate,tier,gppDaily,nppDaily,confidence",
             limit=1,
         )
@@ -642,7 +642,7 @@ async def get_assessment_history(
         results = await query_entities(
             entity_type="CarbonAssessment",
             tenant_id=tenant_id,
-            query=f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
+            query=f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
             limit=limit,
         )
     except Exception as exc:
@@ -917,7 +917,7 @@ async def get_tenant_summary(
                 results = await query_entities(
                     entity_type="CarbonAssessment",
                     tenant_id=tenant_id,
-                    query=f'refAgriParcel=="{parcel_id}"',
+                    query=f'hasAgriParcel=="{parcel_id}"',
                     limit=1,
                 )
                 if not results:

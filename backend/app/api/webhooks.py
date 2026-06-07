@@ -66,7 +66,7 @@ async def vegetation_index_updated(
         {
           "id": "urn:ngsi-ld:VegetationIndex:...",
           "type": "VegetationIndex",
-          "refAgriParcel": {"type": "Relationship", "object": "urn:ngsi-ld:AgriParcel:..."},
+          "hasAgriParcel": {"type": "Relationship", "object": "urn:ngsi-ld:AgriParcel:..."},
           "indexValue": {"type": "Property", "value": 0.75}
         }
       ],
@@ -138,7 +138,7 @@ def _extract_vi_value(entity_data: dict) -> float | None:
 
 def _extract_ref_parcel(entity_data: dict) -> str | None:
     """Extract the referenced AgriParcel entity ID from an NGSI-LD entity."""
-    ref = entity_data.get("refAgriParcel", {})
+    ref = entity_data.get("hasAgriParcel", {})
     if isinstance(ref, dict):
         return ref.get("object") or ref.get("value")
     if isinstance(ref, str):

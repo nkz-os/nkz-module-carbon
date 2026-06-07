@@ -63,7 +63,7 @@ async def _entity_assessments_to_arrow(
         results = await query_entities(
             entity_type="CarbonAssessment",
             tenant_id=tenant_id,
-            query=f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
+            query=f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
             limit=limit,
         )
     except Exception as exc:

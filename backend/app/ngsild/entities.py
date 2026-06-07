@@ -42,7 +42,7 @@ def build_carbon_assessment(
         "id": entity_id,
         "type": "CarbonAssessment",
         "@context": _context(),
-        "refAgriParcel": {
+        "hasAgriParcel": {
             "type": "Relationship",
             "object": f"urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}",
         },
@@ -78,7 +78,7 @@ def build_carbon_assessment(
     }
 
     if vegetation_index_id:
-        entity["refVegetationIndex"] = {
+        entity["hasVegetationIndex"] = {
             "type": "Relationship",
             "object": vegetation_index_id,
         }
@@ -127,7 +127,7 @@ def build_carbon_stock(
         "id": entity_id,
         "type": "CarbonStock",
         "@context": _context(),
-        "refAgriParcel": {
+        "hasAgriParcel": {
             "type": "Relationship",
             "object": f"urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}",
         },
@@ -157,7 +157,7 @@ def build_management_practice(
         "id": entity_id,
         "type": "ManagementPractice",
         "@context": _context(),
-        "refAgriParcel": {
+        "hasAgriParcel": {
             "type": "Relationship",
             "object": f"urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}",
         },

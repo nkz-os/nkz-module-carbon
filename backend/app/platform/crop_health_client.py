@@ -37,7 +37,7 @@ async def fetch_latest_crop_health(
                 f"{ORION_URL}/ngsi-ld/v1/entities",
                 params={
                     "type": "CropHealthAssessment",
-                    "q": f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}"',
+                    "q": f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}"',
                     "limit": 1,
                     "options": "sort=desc:assessedAt",
                 },

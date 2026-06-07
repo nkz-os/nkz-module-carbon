@@ -86,6 +86,6 @@ def _entity_to_management_input(entity: dict) -> ManagementInput:
     """Convert NGSI-LD entity to ManagementInput model."""
     props = {k: v.get("value") if isinstance(v, dict) and "value" in v else v
              for k, v in entity.items()
-             if k not in ("id", "type", "@context", "refAgriParcel",
+             if k not in ("id", "type", "@context", "hasAgriParcel",
                           "lastUpdated", "source")}
     return ManagementInput(**props)

@@ -37,7 +37,7 @@ async def get_mrv_report(
         assessments = await query_entities(
             entity_type="CarbonAssessment",
             tenant_id=tenant_id,
-            query=f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
+            query=f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
             limit=1,
         )
     except Exception as exc:
@@ -67,7 +67,7 @@ async def get_mrv_report(
         baseline_scenarios = await query_entities(
             entity_type="BaselineScenario",
             tenant_id=tenant_id,
-            query=f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
+            query=f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
             limit=1,
         )
         if baseline_scenarios:
@@ -84,7 +84,7 @@ async def get_mrv_report(
         project_scenarios = await query_entities(
             entity_type="ProjectScenario",
             tenant_id=tenant_id,
-            query=f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
+            query=f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
             limit=1,
         )
         if project_scenarios:
