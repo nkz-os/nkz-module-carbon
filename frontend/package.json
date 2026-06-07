@@ -1,6 +1,7 @@
 {
   "name": "nkz-module-carbon",
   "version": "0.1.0",
+  "packageManager": "pnpm@9.0.0",
   "private": true,
   "type": "module",
   "main": "./src/Module.tsx",
