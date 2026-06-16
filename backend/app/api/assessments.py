@@ -140,24 +140,48 @@ def _get_fapar_params(species: str) -> tuple[float, float, str] | None:
     return FAPAR_PARAMS.get(species.lower())
 
 
-async def _get_existing_cumulative(tenant_id: str, parcel_id: str) -> float:
-    """Get the latest cumulative CO2 value from Orion-LD for a parcel."""
+async def _get_existing_cumulative(
+    tenant_id: str, parcel_id: str,
+) -> tuple[float, str]:
+    """Get the latest cumulative CO2 value and assessment date from Orion-LD.
+
+    Returns (cumulative_value, last_assessment_date) so the caller can
+    avoid double-counting when recalculating for the same date.
+    """
     try:
         prev = await query_entities(
             entity_type="CarbonAssessment",
             tenant_id=tenant_id,
             query=f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}"',
-            attrs="co2SequesteredCumulative",
+            attrs="co2SequesteredCumulative,assessmentDate",
             limit=1,
         )
         if prev:
             props = {k: v.get("value") if isinstance(v, dict) and "value" in v else v
                      for k, v in prev[0].items()
                      if k not in ("id", "type", "@context")}
-            return float(props.get("co2SequesteredCumulative", 0))
+            return (
+                float(props.get("co2SequesteredCumulative", 0)),
+                str(props.get("assessmentDate", "")),
+            )
     except Exception:
         pass
-    return 0.0
+    return 0.0, ""
+
+
+async def _compute_new_cumulative(
+    tenant_id: str,
+    parcel_id: str,
+    assessment_date_str: str,
+    tier1_out,
+) -> float:
+    """Compute cumulative CO2, avoiding double-count on same-day recalculation."""
+    existing_cumulative, last_assessment_date = await _get_existing_cumulative(
+        tenant_id, parcel_id
+    )
+    if last_assessment_date == assessment_date_str and existing_cumulative > 0:
+        return existing_cumulative
+    return existing_cumulative + tier1_out.co2_seq_kgCO2_ha_day
 
 
 def _build_assessment_response(
@@ -573,8 +597,7 @@ async def calculate(
             npp_daily=tier1_out.npp_total_gC_m2_day,
             co2_sequestered_daily=tier1_out.co2_seq_kgCO2_ha_day,
             co2_sequestered_cumulative=(
-                await _get_existing_cumulative(_tid, entity_id)
-                + tier1_out.co2_seq_kgCO2_ha_day
+                await _compute_new_cumulative(_tid, entity_id, assessment_date_str, tier1_out)
             ),
             agb_dry=tier1_out.agb_dry_tDM_ha,
             bgb_dry=tier1_out.bgb_dry_tDM_ha,
