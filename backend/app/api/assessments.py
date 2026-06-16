@@ -76,6 +76,7 @@ from app.platform.weather_client import (
     list_tenant_sensors,
 )
 from app.platform.vegetation_client import resolve_vi_for_parcel
+from app.platform.soil_client import fetch_parcel_soil
 
 logger = logging.getLogger(__name__)
 
@@ -476,8 +477,10 @@ async def calculate(
     carbon_stock_total_val: Optional[float] = None
 
     if tier >= 2:
-        clay_pct = management.get("soil_lab_clay_pct", 20.0)
-        soc_initial = management.get("soil_lab_soc_tC_ha", 50.0)
+        # Fetch real soil data from Orion-LD (AgriSoilExtended), with lab override
+        soil = await fetch_parcel_soil(entity_id, _tid)
+        clay_pct = management.get("soil_lab_clay_pct", soil.clay_pct)
+        soc_initial = management.get("soil_lab_soc_tC_ha", soil.soc_tC_ha)
         initial_pools = init_pools_weihermuller(soc_initial, clay_pct)
         # Build a simplified 12-month input loop
         monthly_inputs = []
@@ -751,9 +754,10 @@ async def get_projection(
     data via POST management endpoint to refine.
     """
     tenant_id = auth.tenant_id
-    # Default soil parameters for projection
-    clay_pct = 20.0
-    soc_initial = 50.0
+    # Fetch real soil data from Orion-LD, fall back to defaults
+    soil = await fetch_parcel_soil(entity_id, tenant_id)
+    clay_pct = soil.clay_pct
+    soc_initial = soil.soc_tC_ha
     initial_pools = init_pools_weihermuller(soc_initial, clay_pct)
 
     # Simplified monthly climate normals
