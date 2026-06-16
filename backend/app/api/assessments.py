@@ -71,7 +71,6 @@ from app.ngsild.entities import build_carbon_assessment, build_carbon_stock
 from app.db.database import insert_carbon_calculation
 from app.platform.weather_client import (
     WeatherSnapshot,
-    fetch_weather,
     fetch_parcel_weather,
     fetch_weather_from_sensor,
     list_tenant_sensors,
@@ -365,9 +364,9 @@ async def calculate(
     fapar_a, fapar_b, _ = fapar_params
     fapar = compute_fapar_frac(vi_value, a=fapar_a, b=fapar_b)
 
-    # --- 2. Weather: weather-worker or tenant sensor ---
+    # --- 2. Weather: weather-api-service (canonical) or tenant sensor ---
     management = body.management or {}
-    weather_source = body.weather_source or management.get("weather_source", "weather_worker")
+    weather_source = body.weather_source or management.get("weather_source", "api")
     sensor_id = body.weather_sensor_id or management.get("weather_sensor_id")
 
     weather: WeatherSnapshot | None = None
@@ -376,7 +375,7 @@ async def calculate(
         weather = await fetch_weather_from_sensor(entity_id, _tid, sensor_id)
 
     if weather is None:
-        # Try parcel-specific weather from entity-manager
+        # Parcel-specific weather from weather-api-service (canonical)
         weather = await fetch_parcel_weather(entity_id, _tid)
 
     if weather is None:

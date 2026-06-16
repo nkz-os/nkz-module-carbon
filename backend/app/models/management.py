@@ -16,8 +16,8 @@ class ManagementInput(BaseModel):
     synthetic-only fertiliser at zero rate, and full residue retention.
     """
     weather_source: str = Field(
-        default="weather_worker",
-        description='"weather_worker" for modelled weather, "sensor" for on-farm sensor',
+        default="api",
+        description='"api" for weather-api-service (canonical), "sensor" for on-farm sensor',
     )
     weather_sensor_id: Optional[str] = Field(
         default=None,

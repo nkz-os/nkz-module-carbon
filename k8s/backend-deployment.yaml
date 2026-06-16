@@ -28,8 +28,8 @@ spec:
           env:
             - name: FIWARE_CONTEXT_BROKER_URL
               value: "http://orion-ld-service:1026"
-            - name: WEATHER_WORKER_URL
-              value: "http://weather-worker-service:8000"
+            - name: WEATHER_API_URL
+              value: "http://weather-api-service:8000"
             - name: VEGETATION_PRIME_URL
               value: "http://vegetation-prime-api-service:8000"
             - name: BIOORCHESTRATOR_URL
