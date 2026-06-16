@@ -77,6 +77,7 @@ from app.platform.weather_client import (
 )
 from app.platform.vegetation_client import resolve_vi_for_parcel
 from app.platform.soil_client import fetch_parcel_soil
+from app.platform.bioorchestrator_client import fetch_phenology_params
 
 logger = logging.getLogger(__name__)
 
@@ -354,15 +355,22 @@ async def calculate(
         entity_id, _tid, species,
     )
 
-    # Species-specific fAPAR params per spec 3.1
-    fapar_params = _get_fapar_params(species)
-    if fapar_params is None:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Species '{species}' has no calibrated fAPAR parameters. "
-                   f"Available: {', '.join(sorted(FAPAR_PARAMS.keys()))}",
-        )
-    fapar_a, fapar_b, _ = fapar_params
+    # --- 1b. Crop parameters from BioOrchestrator (fAPAR, LUE, root fraction) ---
+    bio_params = await fetch_phenology_params(species, lat=lat, lon=lon) if species != "unknown" else None
+
+    # fAPAR params: BioOrchestrator > hardcoded
+    if bio_params and bio_params.fapar_a is not None:
+        fapar_a = bio_params.fapar_a
+        fapar_b = bio_params.fapar_b
+    else:
+        fapar_params = _get_fapar_params(species)
+        if fapar_params is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Species '{species}' has no calibrated fAPAR parameters. "
+                       f"Available: {', '.join(sorted(FAPAR_PARAMS.keys()))}",
+            )
+        fapar_a, fapar_b, _ = fapar_params
     fapar = compute_fapar_frac(vi_value, a=fapar_a, b=fapar_b)
 
     # --- 2. Weather: weather-api-service (canonical) or tenant sensor ---
@@ -389,22 +397,30 @@ async def calculate(
         temp_celsius = weather.temp_air_celsius
         weather_data_quality = weather.data_quality
 
-    # --- 3. Crop parameters ---
-    lue = _get_lue(species)
-    if lue is None:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Species '{species}' has no calibrated LUE value. "
-                   f"Available: {', '.join(sorted(LUE_BY_SPECIES.keys()))}",
-        )
-    root_frac_val = _get_root_fraction(species)
-    if root_frac_val is None:
+    # --- 3. Crop parameters (LUE, root fraction) ---
+    # BioOrchestrator > hardcoded dicts
+    if bio_params and bio_params.lue_gC_per_MJ is not None:
+        lue = bio_params.lue_gC_per_MJ
+    else:
+        lue = _get_lue(species)
+        if lue is None:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Species '{species}' has no calibrated LUE value. "
+                       f"Available: {', '.join(sorted(LUE_BY_SPECIES.keys()))}",
+            )
+
+    root_frac = (
+        bio_params.root_fraction
+        if bio_params and bio_params.root_fraction is not None
+        else _get_root_fraction(species)
+    )
+    if root_frac is None:
         raise HTTPException(
             status_code=422,
             detail=f"Species '{species}' has no calibrated root fraction. "
                    f"Available: {', '.join(sorted(ROOT_FRACTION_BY_SPECIES.keys()))}",
         )
-    root_frac = root_frac_val
 
     # --- 4. Tier determination via Data Resolver ---
     has_management = bool(management and management.get("tillage_type"))
