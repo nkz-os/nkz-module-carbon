@@ -39,6 +39,11 @@ spec:
                 secretKeyRef:
                   name: postgresql-secret
                   key: postgres-url
+            - name: INTERNAL_SERVICE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: internal-service-secret
+                  key: INTERNAL_SERVICE_SECRET
           readinessProbe:
             httpGet:
               path: /readyz
