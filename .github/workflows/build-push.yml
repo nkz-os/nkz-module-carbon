@@ -40,7 +40,9 @@ jobs:
         with:
           context: backend/
           push: true
-          tags: ghcr.io/nkz-os/nkz-module-carbon/carbon-backend:latest
+          tags: |
+            ghcr.io/nkz-os/nkz-module-carbon/carbon-backend:${{ github.sha }}
+            ghcr.io/nkz-os/nkz-module-carbon/carbon-backend:latest
 
   # Frontend (MF2 remote) publish via OIDC-authenticated canonical workflow.
   # The reusable workflow requests a GitHub OIDC JWT, sends it to api-gateway
