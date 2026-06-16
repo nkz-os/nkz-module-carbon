@@ -1,0 +1,39 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: carbon-api-internal
+  namespace: nekazari
+spec:
+  podSelector:
+    matchLabels:
+      app: carbon-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nekazari
+      ports:
+        - port: 8000
+          protocol: TCP
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nekazari
+      ports:
+        - port: 1026    # Orion-LD
+        - port: 5432    # PostgreSQL
+        - port: 8000    # weather-api, vegetation-prime, soil-module
+        - port: 8420    # BioOrchestrator
+        - port: 53      # DNS
+          protocol: UDP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
