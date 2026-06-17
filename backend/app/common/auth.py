@@ -12,6 +12,7 @@ from typing import Optional
 
 from fastapi import Depends, Header, HTTPException
 from nkz_platform_sdk.auth import AuthContext, require_auth as sdk_require_auth
+from app.common.tenant_utils import normalize_tenant_id
 
 __all__ = ["AuthContext", "require_auth", "require_tenant_header"]
 
@@ -43,9 +44,8 @@ async def require_tenant_header(
             detail="NGSILD-Tenant or Fiware-Service header is required",
         )
 
-    # Normalize: lowercase, hyphens→underscores, strip non-alnum
-    normalized = raw.lower().strip().replace("-", "_")
-    normalized = re.sub(r"[^a-z0-9_]", "", normalized).strip("_")
+    # Normalize via platform canonical
+    normalized = normalize_tenant_id(raw)
     if len(normalized) < 3:
         raise HTTPException(
             status_code=400,
