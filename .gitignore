@@ -26,3 +26,10 @@ docs/audits/
 HANDOFF.md
 CURRENT_STATE.md
 .ai/
+
+# Security: sensitive files
+*.pem
+*.key
+apikey_*.txt
+*.apikey
+*-secret*
