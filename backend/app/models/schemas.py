@@ -38,15 +38,16 @@ class TierGap(BaseModel):
 class CalculateRequest(BaseModel):
     """Trigger a carbon calculation for a parcel.
 
-    All fields are optional — the engine falls back to defaults or
-    platform-service lookup when the caller doesn't supply them.
+    Crop species is read from Orion-LD (AgriParcel.hasAgriCrop → AgriCrop),
+    assigned via BioOrchestrator for the active campaign. ``crop_species``
+    in the body is ignored. Coordinates default to AgriParcel.location.
     """
     entity_id: str
     tenant_id: Optional[str] = None
     lat: Optional[float] = None
     lon: Optional[float] = None
     date: Optional[date] = None
-    crop_species: Optional[str] = None
+    crop_species: Optional[str] = None  # deprecated — Orion is source of truth
     morph_type: Optional[str] = None  # "herbaceous" | "woody"
     management: Optional[dict] = None  # management data for Tier 2+
     weather_source: Optional[str] = None  # "weather_worker" | "sensor"

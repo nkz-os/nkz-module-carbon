@@ -78,6 +78,11 @@ from app.platform.weather_client import (
 from app.platform.vegetation_client import resolve_vi_for_parcel
 from app.platform.soil_client import fetch_parcel_soil
 from app.platform.bioorchestrator_client import fetch_phenology_params
+from app.platform.crop_client import (
+    fetch_assigned_crop,
+    fetch_parcel_coordinates,
+    phenology_species_param,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -363,16 +368,35 @@ async def calculate(
 ):
     """Run Tier 1 (always) + Tier 2/3 if sufficient data.
 
-    Fetches real vegetation index from vegetation-prime and weather from
-    weather-worker or tenant sensors depending on configuration.
+    Crop identity comes from Orion-LD (AgriParcel.hasAgriCrop → AgriCrop),
+    written by BioOrchestrator for the active campaign. Request body
+    crop_species is ignored.
     """
     _tid = auth.tenant_id
     calc_date = body.date or date.today()
     doy = doy_from_date(calc_date)
-    species = (body.crop_species or "unknown").lower()
+
+    assigned = await fetch_assigned_crop(entity_id, _tid)
+    if not assigned:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "No crop assigned to this parcel in Orion-LD. "
+                "Assign the campaign crop via BioOrchestrator before calculating carbon."
+            ),
+        )
+
+    species = assigned.species_key
+    phenology_species = phenology_species_param(assigned.species_raw)
     morph_type_str = body.morph_type or _resolve_morph_type(species).value
-    lat = body.lat if body.lat is not None else 42.0
-    lon = body.lon if body.lon is not None else -2.0
+
+    coords = await fetch_parcel_coordinates(entity_id, _tid)
+    if coords:
+        lat, lon = coords
+    elif body.lat is not None and body.lon is not None:
+        lat, lon = body.lat, body.lon
+    else:
+        lat, lon = 42.0, -2.0
 
     # --- 1. Resolve vegetation index from vegetation-prime ---
     vi_value, vi_type_name, vi_quality = await resolve_vi_for_parcel(
@@ -380,7 +404,7 @@ async def calculate(
     )
 
     # --- 1b. Crop parameters from BioOrchestrator (fAPAR, LUE, root fraction) ---
-    bio_params = await fetch_phenology_params(species, lat=lat, lon=lon) if species != "unknown" else None
+    bio_params = await fetch_phenology_params(phenology_species, lat=lat, lon=lon)
 
     # fAPAR params: BioOrchestrator > hardcoded
     if bio_params and bio_params.fapar_a is not None:
@@ -467,7 +491,7 @@ async def calculate(
         lai_available=False,
         meteo_available=True,  # weather-worker always available
         soil_available=has_soil_lab,
-        phenology_available=bool(body.crop_species),
+        phenology_available=True,
         management_available=has_management,
         sensors_soil_available=bool(management.get("sensors_soil_moisture")),
         sensors_plant_available=bool(management.get("sensors_canopy_ir")),
@@ -741,17 +765,18 @@ async def get_tier_info(
 ):
     """Analyze available data and report current tier + gaps.
 
-    Query params let the frontend pass what it knows about data availability.
-    Phase 6 adds automatic detection via platform service queries.
+    Crop assignment is read from Orion-LD; the crop_species query param is
+    deprecated and ignored when Orion has an active AgriCrop.
     """
     tenant_id = auth.tenant_id
-    species_ok = crop_species is not None and crop_species.lower() in LUE_BY_SPECIES
+    assigned = await fetch_assigned_crop(entity_id, tenant_id)
+    phenology_ok = assigned is not None
 
     avail = DataAvailability(
         ndvi_available=True,
         meteo_available=True,
         soil_available=has_soil_lab,
-        phenology_available=species_ok,
+        phenology_available=phenology_ok,
         management_available=has_management,
         sensors_soil_available=has_sensors,
         sensors_plant_available=has_sensors,
@@ -940,14 +965,14 @@ async def get_tenant_summary(
     if not parcels:
         return TierSummaryResponse(tenant_id=tenant_id, parcels=[], yearly_aggregations=[])
 
-    # 2. Extract parcel IDs and names
+    # 2. Extract parcel IDs, names, and assigned crop (Orion → AgriCrop)
     parcel_infos = []
     for ent in parcels:
         pid = ent.get("id", "")
-        # Extract short ID from URN
         short_id = pid.split(":")[-1] if ":" in pid else pid
         name = _extract_ngsild_value(ent, "name", short_id)
-        crop = _extract_ngsild_value(ent, "cropSpecies", "")
+        assigned = await fetch_assigned_crop(short_id, tenant_id)
+        crop = assigned.species_raw if assigned else ""
         parcel_infos.append((pid, short_id, str(name), str(crop)))
 
     # 3. Fetch latest CarbonAssessment for each parcel (parallel, max 10 concurrent)
