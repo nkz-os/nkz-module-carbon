@@ -178,30 +178,36 @@ async def _query_active_crop_for_parcel(
     tenant_id: str,
 ) -> AssignedCrop | None:
     orion = get_orion_client()
-    parcel_filter = (
-        f'hasAgriParcel=="{parcel_ref}"||refAgriParcel=="{parcel_ref}"'
-    )
-    active = await orion.query_entities(
-        entity_type="AgriCrop",
-        tenant_id=tenant_id,
-        query=f"{parcel_filter};status==\"active\"",
-        limit=5,
-    )
-    for ent in active or []:
-        crop = _crop_from_entity(ent)
-        if crop:
-            return crop
 
-    all_crops = await orion.query_entities(
-        entity_type="AgriCrop",
-        tenant_id=tenant_id,
-        query=parcel_filter,
-        limit=10,
-    )
-    for ent in all_crops or []:
-        crop = _crop_from_entity(ent)
-        if crop and crop.status != "harvested":
-            return crop
+    # Query both relationship names (hasAgriParcel / refAgriParcel) — active first
+    for attr in ("hasAgriParcel", "refAgriParcel"):
+        results = await orion.query_entities(
+            entity_type="AgriCrop",
+            tenant_id=tenant_id,
+            query=f'{attr}=="{parcel_ref}";status=="active"',
+            limit=5,
+        )
+        for ent in results or []:
+            crop = _crop_from_entity(ent)
+            if crop:
+                return crop
+
+    # Fallback: any non-harvested crop (dedupe across both relationship names)
+    seen: set[str] = set()
+    for attr in ("hasAgriParcel", "refAgriParcel"):
+        results = await orion.query_entities(
+            entity_type="AgriCrop",
+            tenant_id=tenant_id,
+            query=f'{attr}=="{parcel_ref}"',
+            limit=10,
+        )
+        for ent in results or []:
+            if ent["id"] in seen:
+                continue
+            seen.add(ent["id"])
+            crop = _crop_from_entity(ent)
+            if crop and crop.status != "harvested":
+                return crop
     return None
 
 
