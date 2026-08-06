@@ -2,8 +2,11 @@
 
 from datetime import date, datetime, timezone
 
+from app.ngsild import CONTEXT_URL
+
 NGSI_LD_CONTEXT = [
     "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld",
+    CONTEXT_URL,
 ]
 
 
