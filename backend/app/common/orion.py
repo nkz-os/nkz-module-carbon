@@ -2,55 +2,68 @@
 
 Thin wrapper around nkz_platform_sdk's OrionClient that adds:
 - upsert_entity() convenience (create-or-update)
-- Module-level singleton via get_orion_client()
+- One cached SDK client per tenant
 - Auto-tenant from request context
+
+Tenant binding is per client, never per call. A single shared client whose
+tenant_id is rebound on each request is not safe under asyncio: any await hands
+the loop to another request, which rebinds it, and the write lands in the wrong
+namespace. upsert_entity's 409 branch spans two awaits and hit exactly that.
 """
 
 import logging
 from typing import Any
 
+import httpx
 from nkz_platform_sdk.orion import OrionClient as SDKOrionClient
 
 logger = logging.getLogger(__name__)
 
-_global_client: SDKOrionClient | None = None
+_clients: dict[str, SDKOrionClient] = {}
+_initialized: bool = False
+
+
+def _client_for(tenant_id: str) -> SDKOrionClient:
+    """Return the client bound to this tenant, creating it on first use."""
+    client = _clients.get(tenant_id)
+    if client is None:
+        client = SDKOrionClient(tenant_id=tenant_id)
+        _clients[tenant_id] = client
+    return client
 
 
 def get_orion_client() -> "OrionClientWrapper":
-    """Get the global OrionClientWrapper instance.
+    """Get the OrionClientWrapper.
 
     Must be initialized first via init_orion_client() in app lifespan.
     """
-    if _global_client is None:
+    if not _initialized:
         raise RuntimeError("OrionClient not initialized — call init_orion_client() first")
-    return OrionClientWrapper(_global_client)
+    return OrionClientWrapper()
 
 
 def init_orion_client(tenant_id: str | None = None):
-    """Initialize the global OrionClient singleton.
+    """Enable Orion access for the process.
 
-    Called from app lifespan. For tenant-scoped operations, the tenant_id
-    is provided per-request via the wrapper.
+    Called from app lifespan. Clients are created lazily, one per tenant, so
+    there is nothing to build here. ``tenant_id`` is accepted for call
+    compatibility and ignored: every operation carries its own tenant.
     """
-    global _global_client
-    if _global_client is not None:
-        return  # already initialized
-    _global_client = SDKOrionClient(tenant_id=tenant_id or "default")
+    global _initialized
+    _initialized = True
 
 
 async def close_orion_client():
-    """Close the global OrionClient singleton."""
-    global _global_client
-    if _global_client:
-        await _global_client.close()
-        _global_client = None
+    """Close every per-tenant client."""
+    global _initialized
+    for client in list(_clients.values()):
+        await client.close()
+    _clients.clear()
+    _initialized = False
 
 
 class OrionClientWrapper:
-    """Scoped wrapper that pins tenant_id per operation."""
-
-    def __init__(self, client: SDKOrionClient):
-        self._client = client
+    """Tenant-scoped facade: each call resolves the client bound to its tenant."""
 
     async def query_entities(
         self,
@@ -61,8 +74,7 @@ class OrionClientWrapper:
         limit: int = 100,
     ) -> list[dict[str, Any]]:
         """Query entities scoped to tenant."""
-        self._client.tenant_id = tenant_id
-        return await self._client.query_entities(
+        return await _client_for(tenant_id).query_entities(
             type=entity_type,
             q=query,
             limit=limit,
@@ -74,28 +86,37 @@ class OrionClientWrapper:
         entity_id: str,
         tenant_id: str,
     ) -> dict[str, Any] | None:
-        """Get a single entity. Returns None on 404."""
-        self._client.tenant_id = tenant_id
+        """Get a single entity. Returns None on 404.
+
+        Only 404 means absent. Swallowing every error here would report "no such
+        entity" when Orion is unreachable — a false zero the platform forbids.
+        """
         try:
-            return await self._client.get_entity(entity_id)
-        except Exception:
-            return None
+            return await _client_for(tenant_id).get_entity(entity_id)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                return None
+            raise
 
     async def upsert_entity(
         self,
         entity: dict[str, Any],
         tenant_id: str,
     ) -> dict[str, Any]:
-        """Create entity, or update if already exists (409)."""
-        self._client.tenant_id = tenant_id
+        """Create entity, or update if already exists (409).
+
+        Both calls go through the same tenant-bound client, so the retry cannot
+        drift to another namespace while the first await is in flight.
+        """
+        client = _client_for(tenant_id)
         try:
-            return await self._client.create_entity(entity)
+            return await client.create_entity(entity)
         except Exception as exc:
-            if hasattr(exc, "response") and getattr(exc.response, "status_code", 0) == 409:
+            if getattr(getattr(exc, "response", None), "status_code", 0) == 409:
                 entity_id = entity["id"]
                 attrs = {k: v for k, v in entity.items()
                          if k not in ("id", "type", "@context")}
-                await self._client.update_entity_attrs(entity_id, attrs)
+                await client.update_entity_attrs(entity_id, attrs)
                 return entity
             raise
 
