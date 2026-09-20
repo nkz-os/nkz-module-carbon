@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from app.common.orion import get_orion_client
+from app.platform.crop_client import normalize_parcel_short_id
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +41,16 @@ async def fetch_parcel_soil(
 
     Returns default values if no entity is found.
     """
+    # Parcel URNs are tenant-less (urn:ngsi-ld:AgriParcel:{id}) — the soil
+    # entity's hasAgriParcel/refAgriParcel point at that shape. NGSI-LD OR is a
+    # single pipe; a double pipe is an invalid Q-Filter (400).
+    parcel_ref = f"urn:ngsi-ld:AgriParcel:{normalize_parcel_short_id(parcel_id)}"
     try:
         orion = get_orion_client()
         entities = await orion.query_entities(
             entity_type="AgriSoilExtended",
             tenant_id=tenant_id,
-            query=(
-                f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}"'
-                f'||hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}"'
-            ),
+            query=f'refAgriParcel=="{parcel_ref}"|hasAgriParcel=="{parcel_ref}"',
             limit=1,
         )
         if not entities:
@@ -56,10 +58,7 @@ async def fetch_parcel_soil(
             entities = await orion.query_entities(
                 entity_type="AgriSoil",
                 tenant_id=tenant_id,
-                query=(
-                    f'refAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}"'
-                    f'||hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_id}"'
-                ),
+                query=f'refAgriParcel=="{parcel_ref}"|hasAgriParcel=="{parcel_ref}"',
                 limit=1,
             )
 
