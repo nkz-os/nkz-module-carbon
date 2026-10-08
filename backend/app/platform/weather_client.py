@@ -131,6 +131,10 @@ async def fetch_weather_from_sensor(
                 return None
 
             for ent in entities:
+                if _extract_property(ent, "dailySummary") is True:
+                    # Closed-day series entity: day-mean solarRadiation is not
+                    # instantaneous irradiance (#1043).
+                    continue
                 temp_val = _extract_property(ent, "temperature")
                 precip_val = _extract_property(ent, "precipitation")
                 solar_val = _extract_property(ent, "solarRadiation")
