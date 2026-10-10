@@ -60,7 +60,7 @@ async def test_harvest_and_fertilization(monkeypatch):
     assert h[1].exported_c_tC_ha is None
     assert f[0].n_kg_ha == pytest.approx(54.0) and f[0].organic is False and f[1].n_kg_ha is None
     assert t[0].tillage_type == "ploughing" and b[0].day == date(2026, 7, 5)
-    assert sorted(m.item for m in missing) == ["fertilizer_n", "harvest_export"]
+    assert [m.item for m in missing] == ["fertilizer_n"]  # unknown export is left to the balance
 
 
 @pytest.mark.asyncio
@@ -69,7 +69,7 @@ async def test_harvest_without_area_is_missing(monkeypatch):
                         lambda: FakeOrion([_op("harvesting", "2026-07-01", harvestedWeight=30000, moisture=12)]))
     h, f, t, b, missing = await oc.fetch_operations("urn:ngsi-ld:AgriParcel:p", "t",
                                                     date(2026, 1, 1), date(2026, 12, 31), area_ha=None)
-    assert h[0].exported_c_tC_ha is None and missing[0].item == "harvest_export"
+    assert h[0].exported_c_tC_ha is None and missing == []
 
 
 @pytest.mark.asyncio

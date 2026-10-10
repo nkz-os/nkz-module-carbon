@@ -129,9 +129,7 @@ async def fetch_operations(
             exported = None
             if weight is not None and moisture is not None and area_ha and 0 <= moisture < 100:
                 exported = weight * (1 - moisture / 100.0) * _C_IN_DM / 1000.0 / area_ha
-            else:
-                missing.append(Missing("harvest_export", f"harvest {day}: weight, moisture or parcel area unknown",
-                                       "tier2_unavailable"))
+            # Unknown export stays None: the balance decides whether a declared fraction covers it.
             harvests.append(HarvestEvent(day, exported, "operation"))
         elif kind == "fertilization":
             rate, n_pct = _num(e.get("fertilizerRate")), parse_n_percent(_value(e.get("fertilizerComposition")))

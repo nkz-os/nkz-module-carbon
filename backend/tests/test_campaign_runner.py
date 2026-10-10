@@ -292,3 +292,23 @@ async def test_form_saved_for_irrigation_only_declares_nothing_else(env, monkeyp
     monkeypatch.setattr(cr, "fetch_operations", ops)
     b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
     assert "harvest_export" in {m.item for m in b.missing}   # no invented 90 % export
+
+
+@pytest.mark.asyncio
+async def test_declared_export_fraction_unlocks_tier2_with_real_ops_missing(env, monkeypatch):
+    store, _ = env
+    from app.platform import operations_client as oc
+
+    class O:
+        async def query_entities(self, entity_type, tenant_id, query=None, attrs=None, limit=100, offset=0):
+            if offset:
+                return []
+            return [{"id": "h", "operationType": {"value": "harvesting"}, "status": {"value": "completed"},
+                     "endedAt": {"value": "2026-07-01T10:00:00Z"}, "harvestedWeight": {"value": 30000}}]
+    monkeypatch.setattr(oc, "get_orion_client", lambda: O())
+    monkeypatch.setattr(cr, "fetch_operations", oc.fetch_operations)   # the real client: weight without moisture
+    store.entities[("t1", "urn:ngsi-ld:ManagementPractice:t1:abc")] = {
+        "id": "urn:ngsi-ld:ManagementPractice:t1:abc", "type": "ManagementPractice",
+        "harvest_export_fraction": {"type": "Property", "value": 0.5}}
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    assert b.tier == 2 and b.cycles[0].exported_c_tC_ha > 0
