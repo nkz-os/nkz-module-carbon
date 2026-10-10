@@ -29,12 +29,15 @@ the month the cycle ends, with everything it grew since sowing.
 |-------|--------|
 | Crop cycles (start, end, role, provenance) | platform crop-cycle resolver |
 | Daily min/max temperature, precipitation, ET0, global radiation | platform parcel daily weather (gaps filled from model analysis and reanalysis) |
-| NDVI per acquisition | `EOProduct` entities (Sentinel-2) |
+| NDVI and OSAVI per acquisition | `EOProduct` entities (Sentinel-2) |
 | Soil SOC and clay, 0–30 cm | `AgriSoilExtended` horizons, or laboratory values declared by the farmer |
-| Harvest, fertilization, tillage, baling | completed `AgriParcelOperation` entities |
-| Export fractions, amendments, irrigation | management form, only when the farmer saved it |
+| Harvest, fertilization, tillage, baling, irrigation | completed `AgriParcelOperation` entities |
+| Export fractions, amendment carbon, lab soil; N and irrigation only without recorded operations | management form, only what the farmer entered |
 
-Each value carries its provenance (`operation`, `declared`, or the source name).
+Each value carries its provenance (`operation`, `declared`, or the source name), and every campaign stores an
+inputs summary — weather days by source, vegetation scenes and longest gap, soil source, operations used — so the
+result can be traced to its data. Tillage and cover crops are not declared: they come from field operations and
+crop cycles. Weather always comes from the parcel daily series; sensor data belongs in that series.
 
 ## 2. Tier 1 — Light Use Efficiency
 
@@ -61,8 +64,8 @@ otherwise from the calibrated table below. Species not listed have no calibratio
 | Rice / sunflower / soybean / sugarcane | 1.3 / 1.3 / 1.2 / 1.8 | 1.24, −0.168 | NDVI | 0.15–0.20 |
 | Olive, vineyard, almond, citrus | — | 1.40, −0.240 | OSAVI | 0.20–0.25 |
 
-Woody crops are calibrated on OSAVI (Pôças et al. 2014). The platform publishes NDVI per acquisition but not
-OSAVI, so woody crops get no Tier 1 until OSAVI is available.
+Woody crops are calibrated on OSAVI = (NIR − Red) / (NIR + Red + 0.16) (Rondeaux et al. 1996; Pôças et al. 2014),
+published per acquisition next to NDVI. Each cycle uses the series of the index its fAPAR is calibrated on.
 
 ## 3. Carbon reaching the soil
 
@@ -123,7 +126,8 @@ Horizons with bulk density outside 0.5–2.2 g cm⁻³ or without organic carbon
 
 ## 5. Tier 3 — N₂O and net balance
 
-N applied = fertilizer rate × N share of its N-P-K grade, per completed fertilization. N₂O follows the IPCC 2019
+N applied = fertilizer rate × N share of its N-P-K grade, per completed fertilization. Irrigation is taken from
+recorded irrigation operations; the farmer's declaration applies only when none are recorded. N₂O follows the IPCC 2019
 Refinement (Vol. 4, Ch. 11): EF1 for wet or dry climate — wet when precipitation exceeds ET0 over the computed
 months, or when irrigated — plus volatilization (EF4) and leaching (EF5). GWP100 from IPCC AR6 (N₂O = 273).
 
@@ -172,6 +176,7 @@ Latin-hypercube samples of the plant-input multiplier. Soil-property uncertainty
 | Myneni & Williams (1994). Remote Sens. Environ. 49:200–211. | fAPAR–NDVI |
 | Pausch & Kuzyakov (2018). Soil Biol. Biochem. 116:250–261. | Root exudation |
 | Pôças et al. (2014). Agric. Water Manage. 142:15–27. | Olive fAPAR–OSAVI |
+| Rondeaux, Steven & Baret (1996). Remote Sens. Environ. 55:95–107. | OSAVI |
 | Rothamsted Research, RothC_Py (2024), Apache-2.0. | Reference implementation |
 | Villalobos et al. (2006). Eur. J. Agron. 24:282–291. | Olive LUE |
 | Weihermüller et al. (2013). Eur. J. Soil Sci. 64:570–585. | Pool initialization |
