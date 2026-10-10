@@ -1,0 +1,162 @@
+import sys
+from datetime import date, timedelta
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+from test_campaign_balance import P, SOIL, _ndvi, _weather  # noqa: E402
+
+from app.ngsild.campaign_entities import build_campaign_stock  # noqa: E402
+from app.platform.errors import SourceUnavailable  # noqa: E402
+from app.services import campaign_runner as cr  # noqa: E402
+from app.services.campaign_types import HarvestEvent  # noqa: E402
+from app.services.roth_c_model import RothCPools, RothCState  # noqa: E402
+
+TODAY = date(2026, 10, 10)
+
+
+class Store:
+    def __init__(self):
+        self.entities = {}
+
+    async def get_entity(self, entity_id, tenant_id):
+        return self.entities.get((tenant_id, entity_id))
+
+    async def upsert_entity(self, entity, tenant_id):
+        self.entities[(tenant_id, entity["id"])] = entity
+        return entity
+
+    async def query_entities(self, entity_type, tenant_id, query=None, attrs=None, limit=100, offset=0):
+        if offset:
+            return []
+        return [e for (t, _), e in self.entities.items() if t == tenant_id and e["type"] == entity_type
+                and query and e["hasAgriParcel"]["object"] in query]
+
+
+def _cycle_dict(start, end, species="TRZAX"):
+    return {"crop_id": "urn:ngsi-ld:AgriCrop:c1", "role": "main_crop", "species": species, "status": "active",
+            "lifecycle": "annual", "start": {"date": start, "provenance": "actual"},
+            "end": {"date": end, "provenance": "actual" if end else None}, "campaign_label": 2026}
+
+
+@pytest.fixture
+def env(monkeypatch):
+    store = Store()
+    calls = {"weather": []}
+
+    async def cycles(urn, tenant, at, client=None):
+        return [_cycle_dict("2026-01-01", "2026-06-30")]
+
+    async def weather(urn, tenant, start, end, client=None):
+        calls["weather"].append((start, end))
+        return list(_weather(start, min(end, TODAY - timedelta(days=1))))
+
+    async def ndvi(urn, tenant, start, end):
+        return list(_ndvi(date(2025, 1, 1), date(2026, 12, 31)))
+
+    async def soil(urn, tenant, lab=(None, None)):
+        return SOIL, []
+
+    async def ops(urn, tenant, start, end, area):
+        return [HarvestEvent(date(2026, 7, 1), 1.2, "operation")], [], [], [], []
+
+    async def area(urn, tenant):
+        return 10.0
+
+    async def coords(pid, tenant):
+        return (42.0, -1.6)
+
+    async def params(species, lat, lon):
+        return P, []
+
+    for name, fn in [("fetch_cycles", cycles), ("fetch_daily_weather", weather), ("fetch_ndvi_series", ndvi),
+                     ("fetch_soil_init", soil), ("fetch_operations", ops), ("fetch_parcel_area_ha", area),
+                     ("fetch_parcel_coordinates", coords), ("resolve_crop_params", params)]:
+        monkeypatch.setattr(cr, name, fn)
+    monkeypatch.setattr(cr, "get_orion_client", lambda: store)
+    return store, calls
+
+
+@pytest.mark.asyncio
+async def test_writes_assessment_and_stock(env):
+    store, _ = env
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    assert b.tier == 2 and b.initial_state_source == "soil"
+    a = store.entities[("t1", "urn:ngsi-ld:CarbonAssessment:t1:abc:2026")]
+    assert a["hasAgriParcel"]["object"] == "urn:ngsi-ld:AgriParcel:abc"
+    s = store.entities[("t1", "urn:ngsi-ld:CarbonStock:t1:abc:2026")]
+    assert s["stateDate"]["value"] == "2026-09-30"
+
+
+@pytest.mark.asyncio
+async def test_chains_from_complete_previous_stock(env):
+    store, _ = env
+    prev = RothCState(RothCPools(0.1, 5.0, 0.7, 30.0, 3.0), -5.0)
+    e = build_campaign_stock("t1", "abc", 2025, prev, date(2025, 12, 31))
+    store.entities[("t1", e["id"])] = e
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    assert b.initial_state_source == "previous_campaign"
+    assert b.soc_start_tC_ha == pytest.approx(prev.pools.total)
+
+
+@pytest.mark.asyncio
+async def test_incomplete_previous_campaign_is_finished_first(env):
+    store, _ = env
+    first = await cr.run_campaign("t1", "abc", 2025, today=date(2025, 12, 20))
+    assert first.computed_through == date(2025, 11, 30)
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    s25 = store.entities[("t1", "urn:ngsi-ld:CarbonStock:t1:abc:2025")]
+    assert s25["stateDate"]["value"] == "2025-12-31" and b.initial_state_source == "previous_campaign"
+
+
+@pytest.mark.asyncio
+async def test_cascade_recomputes_following_campaign(env):
+    store, _ = env
+    await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    before = store.entities[("t1", "urn:ngsi-ld:CarbonAssessment:t1:abc:2026")]["calculatedAt"]["value"]
+    await cr.run_campaign("t1", "abc", 2025, today=TODAY)
+    after = store.entities[("t1", "urn:ngsi-ld:CarbonAssessment:t1:abc:2026")]
+    assert after["calculatedAt"]["value"] >= before
+    assert after["initialStateSource"]["value"] == "previous_campaign"
+
+
+@pytest.mark.asyncio
+async def test_crossing_cycle_widens_weather_window(env, monkeypatch):
+    store, calls = env
+
+    async def cycles(urn, tenant, at, client=None):
+        return [_cycle_dict("2025-10-15", "2026-06-30")]
+    monkeypatch.setattr(cr, "fetch_cycles", cycles)
+    await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    assert min(s for s, _ in calls["weather"]) == date(2025, 10, 15)
+
+
+@pytest.mark.asyncio
+async def test_source_down_writes_nothing(env, monkeypatch):
+    store, _ = env
+
+    async def down(*a, **k):
+        raise SourceUnavailable("weather down")
+    monkeypatch.setattr(cr, "fetch_daily_weather", down)
+    with pytest.raises(SourceUnavailable):
+        await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    assert store.entities == {}
+
+
+@pytest.mark.asyncio
+async def test_future_year_rejected(env):
+    with pytest.raises(ValueError):
+        await cr.run_campaign("t1", "abc", 2027, today=TODAY)
+
+
+@pytest.mark.asyncio
+async def test_list_and_get(env):
+    store, _ = env
+    await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    listed = await cr.list_campaigns("t1", "abc")
+    assert [c["campaign_label"] for c in listed] == [2026]
+    one = await cr.get_campaign("t1", "abc", 2026)
+    assert one["computed_through"] == "2026-09-30" and one["data_tier"] == 2
+    assert await cr.get_campaign("t1", "abc", 2024) is None
