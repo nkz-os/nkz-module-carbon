@@ -54,6 +54,11 @@ def _snake(name: str) -> str:
     return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
 
 
+# Orion-LD compacts a one-element array value to the bare element (and may drop an
+# empty one): these attributes are always lists in the API.
+_LIST_ATTRS = ("cycle_breakdown", "monthly_balance", "missing", "assumptions", "data_sources")
+
+
 def entity_to_dict(entity: dict) -> dict:
     """API view of a stored CarbonAssessment: snake_case keys, plain values."""
     # Orion compacts the relationship to either term (same IRI).
@@ -62,6 +67,9 @@ def entity_to_dict(entity: dict) -> dict:
         if k in ("id", "type", "@context", "hasAgriParcel", "refAgriParcel"):
             continue
         out[_snake(k)] = _v(entity, k)
+    for k in _LIST_ATTRS:
+        v = out.get(k)
+        out[k] = [] if v is None else v if isinstance(v, list) else [v]
     return out
 
 

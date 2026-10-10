@@ -312,3 +312,19 @@ async def test_declared_export_fraction_unlocks_tier2_with_real_ops_missing(env,
         "harvest_export_fraction": {"type": "Property", "value": 0.5}}
     b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
     assert b.tier == 2 and b.cycles[0].exported_c_tC_ha > 0
+
+
+def test_entity_view_restores_single_element_lists():
+    # Orion-LD compacts a one-element array value to the element itself.
+    e = {"id": "x", "type": "CarbonAssessment",
+         "hasAgriParcel": {"type": "Relationship", "object": "urn:ngsi-ld:AgriParcel:abc"},
+         "cycleBreakdown": {"type": "Property", "value": {"crop_id": "c1"}},
+         "monthlyBalance": {"type": "Property", "value": {"month": 1}},
+         "missing": {"type": "Property", "value": {"item": "soil"}},
+         "assumptions": {"type": "Property", "value": "only one"},
+         "dataSources": {"type": "Property", "value": "eo_ndvi"}}
+    row = cr.entity_to_dict(e)
+    assert row["cycle_breakdown"] == [{"crop_id": "c1"}] and row["monthly_balance"] == [{"month": 1}]
+    assert row["missing"] == [{"item": "soil"}] and row["assumptions"] == ["only one"]
+    assert row["data_sources"] == ["eo_ndvi"]
+    assert cr.entity_to_dict({"id": "y", "type": "CarbonAssessment"})["missing"] == []
