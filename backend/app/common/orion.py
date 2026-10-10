@@ -72,12 +72,14 @@ class OrionClientWrapper:
         query: str | None = None,
         attrs: str | None = None,
         limit: int = 100,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
         """Query entities scoped to tenant."""
         return await _client_for(tenant_id).query_entities(
             type=entity_type,
             q=query,
             limit=limit,
+            offset=offset,
             attrs=attrs,
         )
 
