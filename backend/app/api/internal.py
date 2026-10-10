@@ -18,20 +18,20 @@ Arrow IPC:
       table is created. DataHub BFF handles empty gracefully.
 """
 
+import hmac
 import logging
 import os
+from datetime import date
 
 import pyarrow as pa
 import pyarrow.ipc
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Header
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import List
 
 from app.common.orion import get_orion_client
-from app.ngsild.entities import build_carbon_stock
-from app.services.roth_c_model import init_pools_weihermuller
-from app.platform.soil_client import fetch_parcel_soil
+from app.services.campaign_runner import run_campaign
 
 logger = logging.getLogger(__name__)
 
@@ -128,49 +128,30 @@ async def export_arrow(body: ArrowExportRequest):
 @router.post("/api/carbon/internal/setup-parcel")
 async def setup_parcel(
     body: dict,
+    background_tasks: BackgroundTasks,
     x_internal_secret: str = Header(default="", alias="X-Internal-Service-Secret"),
 ):
-    """Activate carbon module for a parcel.
+    """Activate carbon for a parcel: compute its current campaign in the background.
 
-    Called by entity-manager when user activates the carbon module.
-    Creates initial CarbonStock entity with SOC data from Orion-LD
-    (AgriSoilExtended) or SoilGrids defaults.
+    Called by entity-manager when the module is activated on a parcel.
+    Authenticated by X-Internal-Service-Secret (not JWT).
 
-    Request body:
-        { "parcel_id": "urn:ngsi-ld:AgriParcel:{tenant}:{id}",
-          "tenant_id": "tenant_name" }
+    Request body: { "parcel_id": "<AgriParcel id>", "tenant_id": "<tenant>" }
     """
     internal_secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
-    if not x_internal_secret or x_internal_secret != internal_secret:
+    if not internal_secret or not hmac.compare_digest(x_internal_secret, internal_secret):
         raise HTTPException(status_code=403, detail="Invalid internal secret")
 
     parcel_id = body.get("parcel_id", "")
     tenant_id = body.get("tenant_id", "")
-
     if not parcel_id or not tenant_id:
         raise HTTPException(status_code=400, detail="parcel_id and tenant_id required")
 
-    # Extract short parcel ID from URN
-    short_id = parcel_id.split(":")[-1] if ":" in parcel_id else parcel_id
+    async def _run():
+        try:
+            await run_campaign(tenant_id, parcel_id, date.today().year)
+        except Exception as exc:  # noqa: BLE001 — the daily job retries
+            logger.warning("setup-parcel campaign failed tenant=%s parcel=%s: %s", tenant_id, parcel_id, exc)
 
-    # Fetch real soil data from Orion-LD, fall back to defaults
-    soil = await fetch_parcel_soil(short_id, tenant_id)
-    pools = init_pools_weihermuller(soil.soc_tC_ha, soil.clay_pct)
-
-    stock_entity = build_carbon_stock(
-        tenant_id=tenant_id,
-        parcel_id=short_id,
-        pools=pools.to_dict(),
-        total_soc=pools.total_tC_ha,
-    )
-
-    from app.common.orion import upsert_entity
-    await upsert_entity(stock_entity, tenant_id)
-
-    return {
-        "status": "ok",
-        "parcel_id": parcel_id,
-        "tenant_id": tenant_id,
-        "initial_soc_tC_ha": round(pools.total_tC_ha, 2),
-        "soil_source": soil.source,
-    }
+    background_tasks.add_task(_run)
+    return {"status": "ok", "parcel_id": parcel_id, "tenant_id": tenant_id, "scheduled": True}

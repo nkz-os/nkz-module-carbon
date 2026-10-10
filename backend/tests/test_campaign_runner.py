@@ -160,3 +160,14 @@ async def test_list_and_get(env):
     one = await cr.get_campaign("t1", "abc", 2026)
     assert one["computed_through"] == "2026-09-30" and one["data_tier"] == 2
     assert await cr.get_campaign("t1", "abc", 2024) is None
+
+
+@pytest.mark.asyncio
+async def test_audit_row_written_best_effort(env, monkeypatch):
+    from unittest.mock import AsyncMock
+    audit = AsyncMock(side_effect=RuntimeError("db down"))
+    monkeypatch.setattr(cr, "insert_carbon_calculation", audit)
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)  # a failing audit does not fail the run
+    kwargs = audit.await_args.kwargs
+    assert kwargs["tier"] == b.tier and kwargs["entity_id"] == "urn:ngsi-ld:AgriParcel:abc"
+    assert kwargs["results"]["computed_through"] == "2026-09-30"

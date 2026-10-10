@@ -10,6 +10,7 @@ from app.common.orion import init_orion_client, close_orion_client
 from app.api import (
     internal_router,
     assessments_router,
+    campaigns_router,
     management_router,
     mrv_router,
     scenarios_router,
@@ -51,6 +52,7 @@ app.include_router(internal_router)
 
 # Core carbon endpoints
 app.include_router(assessments_router)
+app.include_router(campaigns_router)
 app.include_router(management_router)
 app.include_router(mrv_router)
 app.include_router(scenarios_router)

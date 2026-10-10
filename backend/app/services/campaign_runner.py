@@ -10,6 +10,7 @@ from datetime import date, timedelta
 from typing import Any, Optional
 
 from app.common.orion import get_orion_client
+from app.db.database import insert_carbon_calculation
 from app.ngsild.campaign_entities import build_campaign_assessment, build_campaign_stock, stock_state
 from app.platform.crop_client import canonical_parcel_urn, fetch_parcel_coordinates, parcel_short
 from app.platform.crop_cycles_client import fetch_cycles
@@ -18,7 +19,7 @@ from app.platform.eo_ndvi_client import fetch_ndvi_series
 from app.platform.errors import SourceUnavailable
 from app.platform.operations_client import fetch_operations, fetch_parcel_area_ha
 from app.platform.soil_client import fetch_soil_init
-from app.services.campaign_balance import compute_campaign_balance
+from app.services.campaign_balance import ENGINE_VERSION, compute_campaign_balance
 from app.services.campaign_types import (
     NO_DECLARED_MANAGEMENT, CampaignBalance, CampaignInputs, CycleSpan, DeclaredManagement, Missing,
 )
@@ -212,6 +213,21 @@ async def run_campaign(
     if balance.end_state is not None and balance.computed_through is not None:
         await orion.upsert_entity(
             build_campaign_stock(tenant_id, urn, year, balance.end_state, balance.computed_through), tenant_id)
+    if balance.tier >= 1:
+        try:
+            await insert_carbon_calculation(
+                tenant_id=tenant_id, entity_id=urn, tier=balance.tier,
+                methodology=f"campaign balance {year} (engine {ENGINE_VERSION})", data_sources=sources,
+                input_params={"year": year, "cycles": len(cycles), "weather_days": len(weather),
+                              "ndvi_scenes": len(ndvi), "initial_state": initial_source},
+                results={"computed_through": balance.computed_through.isoformat() if balance.computed_through else None,
+                         "delta_soc_tC_ha": balance.delta_soc_tC_ha, "co2eq_net_tCO2eq_ha": balance.co2eq_net_tCO2eq_ha,
+                         "missing": sorted({m.item for m in balance.missing})},
+                confidence=0.0, confidence_interval_pct=float(balance.gpp_ci95_pct or 0.0),
+                calculated_by="campaign_runner",
+            )
+        except Exception as exc:  # noqa: BLE001 — the broker entity is the record; the audit row is extra
+            logger.warning("carbon audit insert failed tenant=%s parcel=%s: %s", tenant_id, short, exc)
     logger.info(
         "carbon_campaign tenant=%s parcel=%s year=%s tier=%s through=%s missing=%s",
         tenant_id, short, year, balance.tier, balance.computed_through,
