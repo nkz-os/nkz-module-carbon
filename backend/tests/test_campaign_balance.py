@@ -233,3 +233,15 @@ def test_previous_state_is_used_as_start():
 
 def test_deterministic():
     assert compute_campaign_balance(_inp()) == compute_campaign_balance(_inp())
+
+
+def test_green_ndvi_on_bare_days_is_flagged():
+    b = compute_campaign_balance(_inp(cycles=(), harvests=()))  # NDVI 0.6 all year, no cycle
+    flags = [m for m in b.missing if m.item == "cover_mismatch"]
+    assert flags and flags[0].effect == "cover_uncertain"
+    assert b.tier == 2  # a warning, not a block (spec D2)
+
+
+def test_low_ndvi_on_bare_days_is_not_flagged():
+    b = compute_campaign_balance(_inp(cycles=(), harvests=(), ndvi=_ndvi(date(2026, 1, 1), date(2026, 12, 31), 0.15)))
+    assert "cover_mismatch" not in _items(b)

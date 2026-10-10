@@ -101,7 +101,8 @@
     "cycle_start": "Data de sementeira planeada, não confirmada",
     "cycles": "Sem ciclos de cultura: conta como solo nu",
     "cycle_biomass": "Faltam dados de parte do ciclo de cultura",
-    "complete_campaign": "Ainda não há campanha completa calculada"
+    "complete_campaign": "Ainda não há campanha completa calculada",
+    "cover_mismatch": "O NDVI vê vegetação em dias sem ciclo de cultura"
   },
   "effect": {
     "no_balance": "Não é possível calcular a campanha",
@@ -112,7 +113,8 @@
     "ignored": "Ignorado",
     "uses_planned_date": "É usada a data planeada",
     "bare_soil_assumed": "Conta como solo nu",
-    "no_projection": "Sem projeção"
+    "no_projection": "Sem projeção",
+    "cover_uncertain": "Cobertura do solo incerta: reveja os ciclos de cultura"
   },
   "gap": {
     "baseline_soil_sampling": "Amostragem do solo no início",

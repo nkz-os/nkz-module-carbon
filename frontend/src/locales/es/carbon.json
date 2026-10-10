@@ -101,7 +101,8 @@
     "cycle_start": "Fecha de siembra planificada, sin confirmar",
     "cycles": "Sin ciclos de cultivo: se cuenta como suelo desnudo",
     "cycle_biomass": "Faltan datos de parte del ciclo de cultivo",
-    "complete_campaign": "Aún no hay una campaña completa calculada"
+    "complete_campaign": "Aún no hay una campaña completa calculada",
+    "cover_mismatch": "El NDVI ve vegetación en días sin ciclo de cultivo"
   },
   "effect": {
     "no_balance": "No se puede calcular la campaña",
@@ -112,7 +113,8 @@
     "ignored": "Ignorado",
     "uses_planned_date": "Se usa la fecha planificada",
     "bare_soil_assumed": "Se cuenta como suelo desnudo",
-    "no_projection": "Sin proyección"
+    "no_projection": "Sin proyección",
+    "cover_uncertain": "Cubierta del suelo incierta: revise los ciclos de cultivo"
   },
   "gap": {
     "baseline_soil_sampling": "Muestreo de suelo al inicio",

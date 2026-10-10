@@ -101,7 +101,8 @@
     "cycle_start": "Planned sowing date, not confirmed",
     "cycles": "No crop cycles: counted as bare soil",
     "cycle_biomass": "Data missing for part of the crop cycle",
-    "complete_campaign": "No complete campaign computed yet"
+    "complete_campaign": "No complete campaign computed yet",
+    "cover_mismatch": "NDVI shows vegetation on days without a crop cycle"
   },
   "effect": {
     "no_balance": "The campaign cannot be computed",
@@ -112,7 +113,8 @@
     "ignored": "Ignored",
     "uses_planned_date": "The planned date is used",
     "bare_soil_assumed": "Counted as bare soil",
-    "no_projection": "No projection"
+    "no_projection": "No projection",
+    "cover_uncertain": "Soil cover uncertain: check the crop cycles"
   },
   "gap": {
     "baseline_soil_sampling": "Soil sampling at the start",

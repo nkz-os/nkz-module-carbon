@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 # EPPO → carbon engine lookup keys (LUE / fAPAR / root fraction tables)
 EPPO_TO_CARBON_SPECIES: dict[str, str] = {
     "TRZAX": "wheat",
+    "TRZDU": "wheat",  # durum wheat: same LUE/fAPAR calibration as bread wheat
     "HORVX": "barley",
     "ZEAMX": "corn",
     "ORYSA": "rice",

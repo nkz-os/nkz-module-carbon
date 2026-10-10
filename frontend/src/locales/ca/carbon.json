@@ -101,7 +101,8 @@
     "cycle_start": "Data de sembra planificada, sense confirmar",
     "cycles": "Sense cicles de cultiu: es compta com a sòl nu",
     "cycle_biomass": "Falten dades d'una part del cicle de cultiu",
-    "complete_campaign": "Encara no hi ha cap campanya completa calculada"
+    "complete_campaign": "Encara no hi ha cap campanya completa calculada",
+    "cover_mismatch": "L'NDVI veu vegetació en dies sense cicle de cultiu"
   },
   "effect": {
     "no_balance": "No es pot calcular la campanya",
@@ -112,7 +113,8 @@
     "ignored": "Ignorat",
     "uses_planned_date": "S'utilitza la data planificada",
     "bare_soil_assumed": "Es compta com a sòl nu",
-    "no_projection": "Sense projecció"
+    "no_projection": "Sense projecció",
+    "cover_uncertain": "Coberta del sòl incerta: reviseu els cicles de cultiu"
   },
   "gap": {
     "baseline_soil_sampling": "Mostreig de sòl a l'inici",

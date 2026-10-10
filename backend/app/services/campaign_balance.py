@@ -38,6 +38,8 @@ EXUDATE_FRACTION = 0.07      # share of NPP released as root exudates (Pausch & 
 FAPAR_MAX = 0.95
 MATCH_DAYS = 60              # harvest/baling matched to a cycle end within this window
 MAX_VI_GAP_DAYS = 60
+# NDVI at or above this is green vegetation, not bare soil (bare soil is ~0.1-0.2).
+GREEN_NDVI = 0.3
 SIGMA_REL = {"par": 0.10, "fapar": 0.08, "lue": 0.15}
 LHS_SAMPLES = 500
 G_M2_TO_T_HA = 0.01
@@ -172,6 +174,13 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
             gpp_g += gpp
             npp_g += npp
             exudates_by_month[d.month] += npp * EXUDATE_FRACTION * G_M2_TO_T_HA
+
+    # Cover comes from the cycles; NDVI only contrasts it (spec D2).
+    green_bare = sum(1 for d in period_days if covering(d) is None and (vi.get(d) or 0.0) >= GREEN_NDVI)
+    if green_bare:
+        missing.append(Missing("cover_mismatch",
+                               f"NDVI shows vegetation on {green_bare} days counted as bare soil",
+                               "cover_uncertain"))
 
     tier1_coverage = computed_days_period / cycle_days_period if cycle_days_period else 1.0
     if cycle_days_period and computed_days_period < cycle_days_period:

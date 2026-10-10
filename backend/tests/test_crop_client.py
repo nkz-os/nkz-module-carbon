@@ -18,6 +18,7 @@ def test_normalize_parcel_short_id():
 
 def test_carbon_species_key_eppo_and_common():
     assert carbon_species_key("TRZAX") == "wheat"
+    assert carbon_species_key("TRZDU") == "wheat"
     assert carbon_species_key("olive") == "olive"
 
 def test_phenology_species_param():

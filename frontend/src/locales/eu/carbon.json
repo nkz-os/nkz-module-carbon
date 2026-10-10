@@ -101,7 +101,8 @@
     "cycle_start": "Planifikatutako ereite-data, berretsi gabea",
     "cycles": "Labore-ziklorik ez: lur biluzi gisa kontatzen da",
     "cycle_biomass": "Labore-zikloaren zati baten datuak falta dira",
-    "complete_campaign": "Oraindik ez dago kanpaina osorik kalkulatuta"
+    "complete_campaign": "Oraindik ez dago kanpaina osorik kalkulatuta",
+    "cover_mismatch": "NDVIak landaredia ikusten du labore-ziklorik gabeko egunetan"
   },
   "effect": {
     "no_balance": "Ezin da kanpaina kalkulatu",
@@ -112,7 +113,8 @@
     "ignored": "Baztertua",
     "uses_planned_date": "Planifikatutako data erabiltzen da",
     "bare_soil_assumed": "Lur biluzi gisa kontatzen da",
-    "no_projection": "Proiekziorik ez"
+    "no_projection": "Proiekziorik ez",
+    "cover_uncertain": "Lurzoruaren estaldura ziurgabea: berrikusi labore-zikloak"
   },
   "gap": {
     "baseline_soil_sampling": "Hasierako lurzoru-laginketa",
