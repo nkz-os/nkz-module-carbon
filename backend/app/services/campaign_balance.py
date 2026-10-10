@@ -191,6 +191,8 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
                                    "tier1_partial"))
 
     # -- cycle closures ------------------------------------------------------
+    harvests_of = _assign_events(inp.harvests, cycles)
+    balings_of = _assign_events(inp.balings, cycles)
     closure_by_month: dict[int, float] = defaultdict(float)
     cycle_results: list[CycleResult] = []
     tier2_blocked = any(m.effect == "tier2_unavailable" for m in missing)
@@ -204,7 +206,8 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
                                    "tier2_unavailable"))
             tier2_blocked = True
         if closes:
-            closure, exported, gaps = _closure(acc, inp)
+            closure, exported, gaps = _closure(acc, inp, harvests_of.get(c.crop_id, []),
+                                               balings_of.get(c.crop_id, []))
             missing.extend(gaps)
             if closure is None:
                 tier2_blocked = True
@@ -309,7 +312,28 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
     )
 
 
-def _closure(acc: _CycleAcc, inp: CampaignInputs) -> tuple[Optional[float], Optional[float], list[Missing]]:
+# Roles that are not harvested: without a harvest record their biomass stays on the field.
+_UNHARVESTED_ROLES = {"cover_crop", "catch_crop"}
+
+
+def _assign_events(events, cycles) -> dict[str, list]:
+    """Each harvest/baling belongs to one cycle: the started cycle whose end is nearest."""
+    out: dict[str, list] = defaultdict(list)
+    for ev in events:
+        best = None
+        for c in cycles:
+            if c.end is None or c.start > ev.day or abs((ev.day - c.end).days) > MATCH_DAYS:
+                continue
+            key = (abs((ev.day - c.end).days), -c.start.toordinal())
+            if best is None or key < best[0]:
+                best = (key, c.crop_id)
+        if best is not None:
+            out[best[1]].append(ev)
+    return out
+
+
+def _closure(acc: _CycleAcc, inp: CampaignInputs, harvests: list, balings: list,
+             ) -> tuple[Optional[float], Optional[float], list[Missing]]:
     """C returned to the soil when the cycle ends (tC/ha), the C exported, and the gaps."""
     c = acc.span
     gaps: list[Missing] = []
@@ -319,8 +343,6 @@ def _closure(acc: _CycleAcc, inp: CampaignInputs) -> tuple[Optional[float], Opti
         return None, None, gaps
     shoot = acc.shoot_g * G_M2_TO_T_HA
     root = acc.root_g * G_M2_TO_T_HA
-    near = lambda d: abs((d - c.end).days) <= MATCH_DAYS  # noqa: E731
-    harvests = [h for h in inp.harvests if near(h.day)]
     if harvests:
         if any(h.exported_c_tC_ha is None for h in harvests):
             frac = inp.declared.harvest_export_fraction
@@ -330,7 +352,7 @@ def _closure(acc: _CycleAcc, inp: CampaignInputs) -> tuple[Optional[float], Opti
             exported = shoot * frac
         else:
             exported = sum(h.exported_c_tC_ha for h in harvests)
-    elif c.role == "cover_crop":
+    elif c.role in _UNHARVESTED_ROLES:
         exported = 0.0
     elif inp.declared.harvest_export_fraction is not None:
         exported = shoot * inp.declared.harvest_export_fraction
@@ -340,7 +362,7 @@ def _closure(acc: _CycleAcc, inp: CampaignInputs) -> tuple[Optional[float], Opti
         return None, None, gaps
     exported = min(exported, shoot)
     residue = shoot - exported
-    if any(near(b.day) for b in inp.balings):
+    if balings:
         frac = inp.declared.residue_removal_fraction
         if frac is None:
             gaps.append(Missing("residue_removal", f"{c.crop_id}: baled, removed share not declared",

@@ -245,3 +245,19 @@ def test_green_ndvi_on_bare_days_is_flagged():
 def test_low_ndvi_on_bare_days_is_not_flagged():
     b = compute_campaign_balance(_inp(cycles=(), harvests=(), ndvi=_ndvi(date(2026, 1, 1), date(2026, 12, 31), 0.15)))
     assert "cover_mismatch" not in _items(b)
+
+
+def test_one_harvest_belongs_to_one_cycle():
+    barley = _cycle(date(2026, 1, 1), date(2026, 6, 30))
+    cover = CycleSpan("c2", "TRZAX", "cover_crop", "annual", date(2026, 7, 5), date(2026, 8, 20),
+                      "actual", "actual", 2026, P)
+    b = compute_campaign_balance(_inp(cycles=(barley, cover)))
+    by_id = {c.crop_id: c for c in b.cycles}
+    assert by_id["c1"].exported_c_tC_ha == pytest.approx(1.2)
+    assert by_id["c2"].exported_c_tC_ha == 0.0   # the barley harvest is not the cover crop's
+
+
+def test_catch_crop_without_harvest_returns_everything():
+    b = compute_campaign_balance(_inp(cycles=(_cycle(date(2026, 1, 1), date(2026, 4, 30), role="catch_crop"),),
+                                      harvests=()))
+    assert b.tier == 2 and b.cycles[0].exported_c_tC_ha == 0.0
