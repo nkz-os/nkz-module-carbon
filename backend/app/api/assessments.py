@@ -66,7 +66,7 @@ from app.services.data_resolver import (
 from app.services.spectral import MorphologicalType, VegetationIndex, select_index
 from app.services.solar_geometry import clear_sky_par_MJ_m2_day, doy_from_date
 from app.services.units import C_TO_CO2
-from app.common.orion import upsert_entity, query_entities, get_entity
+from app.common.orion import get_entity, get_orion_client, query_entities, upsert_entity
 from app.ngsild.entities import build_carbon_assessment, build_carbon_stock
 from app.db.database import insert_carbon_calculation
 from app.platform.weather_client import (
@@ -79,7 +79,7 @@ from app.platform.vegetation_client import resolve_vi_for_parcel
 from app.platform.soil_client import fetch_parcel_soil
 from app.platform.bioorchestrator_client import fetch_phenology_params
 from app.platform.errors import SourceUnavailable
-from app.services.campaign_runner import projection
+from app.services.campaign_runner import list_campaigns, projection
 from app.platform.crop_client import (
     fetch_assigned_crop,
     fetch_parcel_coordinates,
@@ -865,137 +865,70 @@ async def get_tenant_summary(
     year: Optional[int] = Query(default=None),
     auth: AuthContext = require_auth(),
 ):
-    """Aggregate carbon assessments across all parcels for the tenant.
-
-    Queries all AgriParcel entities in Orion-LD, fetches their latest
-    CarbonAssessment, and builds a summary table with yearly aggregation.
-    """
+    """Carbon by campaign across the tenant's parcels (default: the current campaign)."""
     tenant_id = auth.tenant_id
-    logger.info("Summary requested for tenant=%s year=%s", tenant_id, year)
-    # 1. Fetch all AgriParcel entities for the tenant
-    parcels: list[dict] = []
+    year = year or date.today().year
     try:
-        parcels = await query_entities(
-            entity_type="AgriParcel",
-            tenant_id=tenant_id,
-            limit=500,
-        )
-    except Exception as exc:
-        logger.exception("Error querying AgriParcel for tenant %s", tenant_id)
-        raise HTTPException(status_code=500, detail=str(exc))
+        parcels = await _tenant_parcels(tenant_id)
+        sem = asyncio.Semaphore(10)
 
+        async def campaigns_of(pid: str):
+            async with sem:
+                return await list_campaigns(tenant_id, pid)
 
-    if not parcels:
-        return TierSummaryResponse(tenant_id=tenant_id, parcels=[], yearly_aggregations=[])
+        all_rows = await asyncio.gather(*(campaigns_of(p["id"]) for p in parcels))
+    except SourceUnavailable as exc:
+        raise HTTPException(status_code=503, detail={"error": "source_unavailable", "detail": str(exc)})
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("summary failed tenant=%s", tenant_id)
+        raise HTTPException(status_code=503, detail={"error": "source_unavailable", "detail": str(exc)})
 
-    # 2. Extract parcel IDs, names, and assigned crop (Orion → AgriCrop)
-    parcel_infos = []
-    for ent in parcels:
-        pid = ent.get("id", "")
-        short_id = pid.split(":")[-1] if ":" in pid else pid
-        name = _extract_ngsild_value(ent, "name", short_id)
-        assigned = await fetch_assigned_crop(short_id, tenant_id)
-        crop = assigned.species_raw if assigned else ""
-        parcel_infos.append((pid, short_id, str(name), str(crop)))
+    summary: list[ParcelSummary] = []
+    by_year: dict[int, list[dict]] = {}
+    for parcel, rows in zip(parcels, all_rows):
+        short = parcel["id"].rsplit(":", 1)[-1]
+        for r in rows:
+            by_year.setdefault(r["campaign_label"], []).append(r)
+        row = next((r for r in rows if r["campaign_label"] == year), None)
+        cycles = (row or {}).get("cycle_breakdown") or []
+        summary.append(ParcelSummary(
+            parcel_id=short,
+            parcel_name=_extract_ngsild_value(parcel, "name", short),
+            crop_species=str(cycles[0].get("species") or "") if cycles else "",
+            campaign_year=year if row else None,
+            computed_through=(row or {}).get("computed_through"),
+            tier=int((row or {}).get("data_tier") or 0),
+            co2_gross_tCO2_ha=(row or {}).get("co2_sequestered_gross"),
+            delta_soc_tC_ha=(row or {}).get("soil_carbon_delta"),
+            co2eq_net_tCO2eq_ha=(row or {}).get("co2eq_net"),
+        ))
 
-    # 3. Fetch latest CarbonAssessment for each parcel (parallel, max 10 concurrent)
-    sem = asyncio.Semaphore(10)
+    def mean(values):
+        vals = [v for v in values if v is not None]
+        return sum(vals) / len(vals) if vals else None
 
-    async def _fetch_one(parcel_id: str, short_id: str):
-        async with sem:
-            try:
-                results = await query_entities(
-                    entity_type="CarbonAssessment",
-                    tenant_id=tenant_id,
-                    query=f'hasAgriParcel=="{parcel_id}"',
-                    limit=1,
-                )
-                if not results:
-                    return None
-                ent = results[0]
-                props = {k: v.get("value") if isinstance(v, dict) and "value" in v else v
-                         for k, v in ent.items()
-                         if k not in ("id", "type", "@context")}
-                return {
-                    "parcel_id": short_id,
-                    "assessment_date": str(props.get("assessmentDate", "")),
-                    "tier": int(props.get("dataTier", 1)),
-                    "methodology": str(props.get("methodology", "")),
-                    "co2_seq_cum": float(props.get("co2SequesteredCumulative", 0)),
-                    "carbon_stock": float(props.get("carbonStockTotal", 0)),
-                }
-            except Exception as exc:
-                logger.debug("No assessment for parcel %s: %s", short_id, exc)
-                return None
-
-    tasks = [_fetch_one(pid, sid) for pid, sid, _, _ in parcel_infos]
-    results = await asyncio.gather(*tasks)
-
-    # 4. Build summary rows
-    parcels_summary: list[ParcelSummary] = []
-    for (_, short_id, name, crop), result in zip(parcel_infos, results):
-        if result is None:
-            parcels_summary.append(ParcelSummary(
-                parcel_id=short_id,
-                parcel_name=name,
-                crop_species=crop,
-                co2_captured_cumulative=0.0,
-                carbon_stock_total=0.0,
-                tier=1,
-                methodology="",
-                last_calculation_date=None,
-            ))
-        else:
-            # Filter by year if specified
-            assess_year = None
-            if result["assessment_date"]:
-                try:
-                    assess_year = int(result["assessment_date"][:4])
-                except (ValueError, IndexError):
-                    pass
-            if year is not None and assess_year != year:
-                continue
-
-            parcels_summary.append(ParcelSummary(
-                parcel_id=short_id,
-                parcel_name=name,
-                crop_species=crop,
-                co2_captured_cumulative=round(result["co2_seq_cum"], 2),
-                carbon_stock_total=round(result["carbon_stock"], 2),
-                tier=result["tier"],
-                methodology=result["methodology"],
-                last_calculation_date=result["assessment_date"] or None,
-            ))
-
-    # 5. Build yearly aggregation
-    yearly: dict[int, dict] = {}
-    for p in parcels_summary:
-        if p.last_calculation_date:
-            try:
-                y = int(p.last_calculation_date[:4])
-            except (ValueError, IndexError):
-                continue
-            if y not in yearly:
-                yearly[y] = {"total_co2": 0.0, "total_stock": 0.0, "count": 0}
-            yearly[y]["total_co2"] += p.co2_captured_cumulative
-            yearly[y]["total_stock"] += p.carbon_stock_total
-            yearly[y]["count"] += 1
-
-    yearly_aggs = [
+    aggregations = [
         YearlyAggregation(
             year=y,
-            total_co2_captured_kg=round(d["total_co2"], 2),
-            avg_carbon_stock_tC_ha=round(d["total_stock"] / d["count"], 2) if d["count"] else 0,
-            parcel_count=d["count"],
+            parcel_count=len(rs),
+            co2_gross_tCO2_ha_mean=mean(r.get("co2_sequestered_gross") for r in rs),
+            delta_soc_tC_ha_mean=mean(r.get("soil_carbon_delta") for r in rs),
         )
-        for y, d in sorted(yearly.items())
+        for y, rs in sorted(by_year.items())
     ]
+    return TierSummaryResponse(tenant_id=tenant_id, year=year, parcels=summary, yearly_aggregations=aggregations)
 
-    return TierSummaryResponse(
-        tenant_id=tenant_id,
-        parcels=parcels_summary,
-        yearly_aggregations=yearly_aggs,
-    )
+
+async def _tenant_parcels(tenant_id: str) -> list[dict]:
+    """Every AgriParcel of the tenant, paged (no attrs filter: it hides entities)."""
+    out, offset = [], 0
+    orion = get_orion_client()
+    while True:
+        page = await orion.query_entities(entity_type="AgriParcel", tenant_id=tenant_id, limit=100, offset=offset)
+        out.extend(page or [])
+        if not page or len(page) < 100:
+            return out
+        offset += 100
 
 
 def _extract_ngsild_value(entity: dict, attr: str, default: str = "") -> str:

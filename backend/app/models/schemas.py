@@ -158,28 +158,30 @@ class CalculationRunResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ParcelSummary(BaseModel):
-    """Single parcel row in the tenant carbon summary table."""
+    """One parcel in the tenant summary for a campaign; None = not computed."""
     parcel_id: str
     parcel_name: str = ""
     crop_species: str = ""
-    co2_captured_cumulative: float = 0.0
-    carbon_stock_total: float = 0.0
-    tier: int = 1
-    methodology: str = ""
-    last_calculation_date: Optional[str] = None
+    campaign_year: Optional[int] = None
+    computed_through: Optional[str] = None
+    tier: int = 0
+    co2_gross_tCO2_ha: Optional[float] = None
+    delta_soc_tC_ha: Optional[float] = None
+    co2eq_net_tCO2eq_ha: Optional[float] = None
 
 
 class YearlyAggregation(BaseModel):
-    """Carbon totals for a given year across all parcels."""
+    """Means over the parcels with that campaign computed (null values excluded)."""
     year: int
-    total_co2_captured_kg: float = 0.0
-    avg_carbon_stock_tC_ha: float = 0.0
     parcel_count: int = 0
+    co2_gross_tCO2_ha_mean: Optional[float] = None
+    delta_soc_tC_ha_mean: Optional[float] = None
 
 
 class TierSummaryResponse(BaseModel):
-    """Full tenant-level carbon summary."""
+    """Tenant-level carbon summary for one campaign."""
     tenant_id: str
+    year: int
     parcels: list[ParcelSummary] = []
     yearly_aggregations: list[YearlyAggregation] = []
 
