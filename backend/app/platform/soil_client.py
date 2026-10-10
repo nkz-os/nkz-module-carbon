@@ -26,6 +26,10 @@ _TOPSOIL_CM = 30.0
 # Plausible mineral-soil bulk density, g/cm3. Outside it the value is a NODATA
 # sentinel or a unit error, never a measurement.
 _BD_RANGE = (0.5, 2.2)
+# Mineral soils (bulk density > 0.8) stay well below 12 % organic carbon; a higher
+# value there is g/kg written into the % field, which would inflate SOC tenfold.
+_MAX_MINERAL_OC_PCT = 12.0
+_MINERAL_BD = 0.8
 
 
 def _attr(entity: dict, name: str):
@@ -63,6 +67,8 @@ def _topsoil_from_horizons(horizons: list) -> tuple[Optional[float], Optional[fl
         clay = _num_or_none(h.get("clay"))
         if oc is None or oc < 0 or bd is None or not _BD_RANGE[0] < bd < _BD_RANGE[1] or not 0 <= cf < 100:
             soc_ok = False
+        elif oc > _MAX_MINERAL_OC_PCT and bd > _MINERAL_BD:
+            soc_ok = False
         else:
             soc += oc * bd * thick * (1.0 - cf / 100.0)  # %·g/cm3·cm = tC/ha
         if clay is None or not 0 <= clay <= 100:
@@ -74,7 +80,8 @@ def _topsoil_from_horizons(horizons: list) -> tuple[Optional[float], Optional[fl
     if depth <= 0:
         return None, None, 0.0, [Missing("soil", "no horizons in 0-30 cm", "tier2_unavailable")]
     if not soc_ok:
-        missing.append(Missing("soil_soc", "organic carbon or bulk density invalid in a 0-30 cm horizon", "tier2_unavailable"))
+        missing.append(Missing("soil_soc", "organic carbon or bulk density invalid or implausible in a 0-30 cm horizon",
+                               "tier2_unavailable"))
     if not clay_ok:
         missing.append(Missing("soil_clay", "clay invalid in a 0-30 cm horizon", "tier2_unavailable"))
     return (soc if soc_ok else None), (clay_w / depth if clay_ok else None), depth, missing

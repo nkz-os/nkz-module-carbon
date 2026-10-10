@@ -87,3 +87,11 @@ async def test_orion_failure_is_source_unavailable(monkeypatch):
     monkeypatch.setattr(sc, "get_orion_client", lambda: FakeOrion([], fail=True))
     with pytest.raises(SourceUnavailable):
         await sc.fetch_soil_init("urn:ngsi-ld:AgriParcel:p", "t")
+
+
+@pytest.mark.asyncio
+async def test_organic_carbon_in_g_per_kg_on_mineral_soil_is_missing(monkeypatch):
+    # 15 "%" OC with mineral bulk density is a g/kg value written in a % field.
+    monkeypatch.setattr(sc, "get_orion_client", lambda: FakeOrion(_soil([H(0, 30, 15.0, 1.3, 20)])))
+    soil, missing = await sc.fetch_soil_init("urn:ngsi-ld:AgriParcel:p", "t")
+    assert soil is None and [m.item for m in missing] == ["soil_soc"]
