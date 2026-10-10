@@ -25,8 +25,14 @@ class Store:
         return self.entities.get((tenant_id, entity_id))
 
     async def upsert_entity(self, entity, tenant_id):
+        raise AssertionError("campaign results must be written with replace_entity")
+
+    async def replace_entity(self, entity, tenant_id):
         self.entities[(tenant_id, entity["id"])] = entity
         return entity
+
+    async def delete_entity(self, entity_id, tenant_id):
+        self.entities.pop((tenant_id, entity_id), None)
 
     async def query_entities(self, entity_type, tenant_id, query=None, attrs=None, limit=100, offset=0):
         if offset:
@@ -233,3 +239,33 @@ def test_entity_view_reads_either_relationship_term():
          "campaignLabel": {"type": "Property", "value": 2026}}
     row = cr.entity_to_dict(e)
     assert row["parcel_id"] == "urn:ngsi-ld:AgriParcel:abc" and "ref_agri_parcel" not in row
+
+
+@pytest.mark.asyncio
+async def test_losing_tier2_removes_the_stock(env, monkeypatch):
+    store, _ = env
+    await cr.run_campaign("t1", "abc", 2025, today=TODAY)
+    assert ("t1", "urn:ngsi-ld:CarbonStock:t1:abc:2025") in store.entities
+
+    async def no_soil(urn, tenant, lab=(None, None)):
+        from app.services.campaign_types import Missing
+        return None, [Missing("soil", "none", "tier2_unavailable")]
+    monkeypatch.setattr(cr, "fetch_soil_init", no_soil)
+    b = await cr.run_campaign("t1", "abc", 2025, today=TODAY)
+    assert b.tier == 1 and ("t1", "urn:ngsi-ld:CarbonStock:t1:abc:2025") not in store.entities
+
+
+@pytest.mark.asyncio
+async def test_chain_needs_a_tier2_previous_assessment(env):
+    store, _ = env
+    prev = RothCState(RothCPools(0.1, 5.0, 0.7, 30.0, 3.0), -5.0)
+    e = build_campaign_stock("t1", "abc", 2025, prev, date(2025, 12, 31))
+    store.entities[("t1", e["id"])] = e
+    store.entities[("t1", "urn:ngsi-ld:CarbonAssessment:t1:abc:2025")] = {
+        "id": "urn:ngsi-ld:CarbonAssessment:t1:abc:2025", "type": "CarbonAssessment",
+        "hasAgriParcel": {"type": "Relationship", "object": "urn:ngsi-ld:AgriParcel:abc"},
+        "campaignLabel": {"type": "Property", "value": 2025},
+        "computedThrough": {"type": "Property", "value": "2025-12-31"},
+        "dataTier": {"type": "Property", "value": 1}}
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    assert b.initial_state_source == "soil"

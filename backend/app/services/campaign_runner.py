@@ -156,6 +156,7 @@ async def run_campaign(
     prev_stock = await _get(tenant_id, _stock_id(tenant_id, short, year - 1))
     if prev_assessment and str(_v(prev_assessment, "computedThrough") or "") < f"{year - 1}-12-31":
         await run_campaign(tenant_id, parcel_id, year - 1, today=today, cascade=False)
+        prev_assessment = await _get(tenant_id, _assessment_id(tenant_id, short, year - 1))
         prev_stock = await _get(tenant_id, _stock_id(tenant_id, short, year - 1))
 
     raw_cycles, area, (declared, lab), coords = await asyncio.gather(
@@ -199,7 +200,9 @@ async def run_campaign(
         ))
 
     initial_state, initial_source = None, "soil"
-    if prev_stock:
+    prev_complete = bool(prev_assessment) and int(_v(prev_assessment, "dataTier") or 0) >= 2 and \
+        str(_v(prev_assessment, "computedThrough") or "") == f"{year - 1}-12-31"
+    if prev_stock and (prev_complete or prev_assessment is None):
         state, state_date = stock_state(prev_stock)
         if state_date == date(year - 1, 12, 31):
             initial_state, initial_source = state, "previous_campaign"
@@ -216,10 +219,18 @@ async def run_campaign(
         sources.append(f"soil_{soil.source}")
     sources += sorted({f"crop_params_{p.source}" for p, _ in params_by_species.values() if p is not None})
     orion = get_orion_client()
-    await orion.upsert_entity(build_campaign_assessment(tenant_id, urn, balance, sources, soil), tenant_id)
-    if balance.end_state is not None and balance.computed_through is not None:
-        await orion.upsert_entity(
-            build_campaign_stock(tenant_id, urn, year, balance.end_state, balance.computed_through), tenant_id)
+    # Whole-entity replace: a recomputed campaign must not keep values of the last run.
+    try:
+        await orion.replace_entity(build_campaign_assessment(tenant_id, urn, balance, sources, soil), tenant_id)
+        if balance.end_state is not None and balance.computed_through is not None:
+            await orion.replace_entity(
+                build_campaign_stock(tenant_id, urn, year, balance.end_state, balance.computed_through), tenant_id)
+        else:  # no soil balance any more: its old pools must not feed the next campaign
+            await orion.delete_entity(_stock_id(tenant_id, short, year), tenant_id)
+    except SourceUnavailable:
+        raise
+    except Exception as exc:  # noqa: BLE001 — a failed write is a broker fault, not a result
+        raise SourceUnavailable(f"broker write failed: {exc}") from exc
     if balance.tier >= 1:
         try:
             await insert_carbon_calculation(

@@ -123,6 +123,34 @@ class OrionClientWrapper:
             raise
 
 
+    async def replace_entity(
+        self,
+        entity: dict[str, Any],
+        tenant_id: str,
+    ) -> dict[str, Any]:
+        """Create the entity, or replace it whole if it exists.
+
+        PATCH /attrs (upsert_entity's 409 branch) only touches attributes that
+        already exist: a recomputed result would keep stale values and never gain
+        new ones. Results that must match their latest computation use this.
+        """
+        client = _client_for(tenant_id)
+        try:
+            return await client.create_entity(entity)
+        except Exception as exc:
+            if getattr(getattr(exc, "response", None), "status_code", 0) != 409:
+                raise
+        await client.delete_entity(entity["id"])
+        return await client.create_entity(entity)
+
+    async def delete_entity(self, entity_id: str, tenant_id: str) -> None:
+        """Delete an entity; absent is fine."""
+        try:
+            await _client_for(tenant_id).delete_entity(entity_id)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+
 # ---------------------------------------------------------------------------
 # Convenience functions — matching old ngsild/client.py API signature
 # for minimal diff during migration.
