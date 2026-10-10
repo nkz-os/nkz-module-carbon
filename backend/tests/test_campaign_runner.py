@@ -223,3 +223,13 @@ async def test_future_cycle_does_not_report_its_params(env, monkeypatch):
     monkeypatch.setattr(cr, "resolve_crop_params", no_params)
     b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
     assert "crop_params" not in {m.item for m in b.missing}
+
+
+def test_entity_view_reads_either_relationship_term():
+    # Orion compacts the relationship to whichever term the context lists first;
+    # both expand to the same IRI.
+    e = {"id": "x", "type": "CarbonAssessment",
+         "refAgriParcel": {"type": "Relationship", "object": "urn:ngsi-ld:AgriParcel:abc"},
+         "campaignLabel": {"type": "Property", "value": 2026}}
+    row = cr.entity_to_dict(e)
+    assert row["parcel_id"] == "urn:ngsi-ld:AgriParcel:abc" and "ref_agri_parcel" not in row

@@ -56,9 +56,10 @@ def _snake(name: str) -> str:
 
 def entity_to_dict(entity: dict) -> dict:
     """API view of a stored CarbonAssessment: snake_case keys, plain values."""
-    out: dict[str, Any] = {"parcel_id": _v(entity, "hasAgriParcel")}
+    # Orion compacts the relationship to either term (same IRI).
+    out: dict[str, Any] = {"parcel_id": _v(entity, "hasAgriParcel") or _v(entity, "refAgriParcel")}
     for k in entity:
-        if k in ("id", "type", "@context", "hasAgriParcel"):
+        if k in ("id", "type", "@context", "hasAgriParcel", "refAgriParcel"):
             continue
         out[_snake(k)] = _v(entity, k)
     return out
