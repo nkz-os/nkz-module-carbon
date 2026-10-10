@@ -209,3 +209,17 @@ async def test_projection_and_report_with_baseline(env):
 async def test_report_without_campaigns_is_empty(env):
     r = await cr.monitoring_report("t1", "abc", "VM0042", None, None)
     assert r["campaigns"] == [] and r["net_emission_reductions_tCO2eq_ha"] is None
+
+
+@pytest.mark.asyncio
+async def test_future_cycle_does_not_report_its_params(env, monkeypatch):
+    async def cycles(urn, tenant, at, client=None):
+        return [_cycle_dict("2026-10-15", None, species="QUCHX")]
+
+    async def no_params(species, lat, lon):
+        from app.services.campaign_types import Missing
+        return None, [Missing("crop_params", f"{species}: none", "tier1_unavailable")]
+    monkeypatch.setattr(cr, "fetch_cycles", cycles)
+    monkeypatch.setattr(cr, "resolve_crop_params", no_params)
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    assert "crop_params" not in {m.item for m in b.missing}

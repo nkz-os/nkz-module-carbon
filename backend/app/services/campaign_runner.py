@@ -184,6 +184,8 @@ async def run_campaign(
     cycles: list[CycleSpan] = []
     for s in spans:
         species = str(s.get("species") or "")
+        if s["_start"] > through_max:
+            continue  # not started inside the computed period: nothing to resolve yet
         if species not in params_by_species:
             params_by_species[species] = await resolve_crop_params(species, lat, lon)
             missing.extend(params_by_species[species][1])
