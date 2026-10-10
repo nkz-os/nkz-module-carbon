@@ -2,36 +2,31 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation, useViewerOptional } from '@nekazari/sdk';
 import { useParams } from 'react-router-dom';
 import { EmptyState, Button, Spinner } from '@nekazari/ui-kit';
-import { fetchAssessment, fetchTierInfo, triggerCalculation, fetchManagement } from '../api/carbonApi';
-import type { CarbonAssessment, TierInfo } from '../api/carbonApi';
+import { fetchCampaigns, calculateCampaign } from '../api/carbonApi';
+import type { CampaignRow } from '../api/carbonApi';
 import CarbonTierBadge from './CarbonTierBadge';
-import CarbonGapList from './CarbonGapList';
+import CarbonMissingList from './CarbonMissingList';
+import { colors } from './styles';
+import { currentYear, fmt, fmtSigned, shortParcelId } from './campaignFormat';
 
 interface CarbonContextPanelProps {
   entityId?: string;
-  managementData?: import('../api/carbonApi').ManagementData | null;
 }
 
 function useEntityId(props: CarbonContextPanelProps): string {
   const viewer = useViewerOptional();
   const params = useParams<{ entityId: string }>();
-
   // Viewer context is the canonical source when inside the unified viewer
-  if (viewer?.selectedEntityId) {
-    // Extract short ID from URN if needed
-    const id = viewer.selectedEntityId;
-    return id.includes(':') ? id.split(':').pop()! : id;
-  }
-
+  if (viewer?.selectedEntityId) return shortParcelId(viewer.selectedEntityId);
   return props.entityId || params.entityId || '';
 }
 
 const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
   const { t } = useTranslation('carbon');
   const entityId = useEntityId(props);
+  const year = currentYear();
 
-  const [assessment, setAssessment] = useState<CarbonAssessment | null>(null);
-  const [tierInfo, setTierInfo] = useState<TierInfo | null>(null);
+  const [row, setRow] = useState<CampaignRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [calculating, setCalculating] = useState(false);
@@ -44,18 +39,14 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
     setLoading(true);
     setError(null);
     try {
-      const [assess, info] = await Promise.all([
-        fetchAssessment(entityId).catch(() => null),
-        fetchTierInfo(entityId).catch(() => null),
-      ]);
-      if (assess) setAssessment(assess);
-      if (info) setTierInfo(info);
-    } catch (err) {
+      const list = await fetchCampaigns(entityId);
+      setRow(list.campaigns.find((c) => c.campaign_label === year) ?? null);
+    } catch {
       setError(t('error_loading'));
     } finally {
       setLoading(false);
     }
-  }, [entityId, t]);
+  }, [entityId, year, t]);
 
   useEffect(() => {
     loadData();
@@ -69,22 +60,14 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
     setCalculating(true);
     setError(null);
     try {
-      let mgmt = undefined;
-      try { mgmt = await fetchManagement(entityId); } catch {}
-      const result = await triggerCalculation(entityId, {
-        management: mgmt || undefined,
-      });
-      setAssessment(result);
-      const info = await fetchTierInfo(entityId);
-      if (info) setTierInfo(info);
-    } catch (err) {
+      setRow(await calculateCampaign(entityId, year));
+    } catch {
       setError(t('error_loading'));
     } finally {
       setCalculating(false);
     }
-  }, [entityId, t]);
+  }, [entityId, year, t]);
 
-  // Loading state
   if (loading) {
     return (
       <div style={{ padding: '16px', display: 'flex', justifyContent: 'center' }}>
@@ -93,8 +76,7 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
     );
   }
 
-  // Error state
-  if (error && !assessment) {
+  if (error && !row) {
     return (
       <div style={{ padding: '16px' }}>
         <EmptyState
@@ -106,8 +88,7 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
     );
   }
 
-  // Empty state
-  if (!assessment) {
+  if (!row) {
     return (
       <div style={{ padding: '16px' }}>
         <EmptyState
@@ -123,171 +104,52 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
     );
   }
 
-  const gaps = tierInfo?.gaps || [];
-  const confidence = assessment.confidence;
-
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-        padding: '12px',
-        maxWidth: '320px',
-        minWidth: 0,
-        boxSizing: 'border-box',
-      }}
-    >
-      {/* Header + Tier Badge */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '8px',
-          flexWrap: 'wrap',
-        }}
-      >
-        <h3
-          style={{
-            margin: 0,
-            fontSize: '16px',
-            fontWeight: 600,
-            color: '#111827',
-          }}
-        >
-          {t('title')}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px', maxWidth: '320px',
+      minWidth: 0, boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: colors.textPrimary }}>
+          {t('title')} · {t('campaign')} {row.campaign_label}
         </h3>
-        <CarbonTierBadge tier={assessment.tier} confidence={confidence} compact />
+        <CarbonTierBadge tier={row.data_tier} compact />
       </div>
 
-      {/* Last assessment date */}
-      {assessment.assessment_date && (
-        <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
-          {t('calculated_at')}:{' '}
-          {new Date(assessment.assessment_date).toLocaleDateString()}
-        </div>
-      )}
-
-      {/* Key Metrics */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '8px',
-        }}
-      >
-        <CompactKPI
-          label={t('co2SequesteredCumulative')}
-          value={assessment.co2_sequestered_cumulative.value.toFixed(1)}
-          unit={assessment.co2_sequestered_cumulative.unit}
-        />
-        <CompactKPI
-          label={t('carbonStockTotal')}
-          value={assessment.carbon_stock_total?.value.toFixed(1) ?? '--'}
-          unit={assessment.carbon_stock_total?.unit ?? t('units.tC_ha')}
-        />
-        <CompactKPI
-          label={t('soilCarbonDelta')}
-          value={
-            assessment.soil_carbon_delta
-              ? `${assessment.soil_carbon_delta.value > 0 ? '+' : ''}${assessment.soil_carbon_delta.value.toFixed(2)}`
-              : '--'
-          }
-          unit={assessment.soil_carbon_delta?.unit ?? t('units.tC_ha_yr')}
-        />
-        <CompactKPI
-          label={t('gppDaily')}
-          value={assessment.gpp_daily.value.toFixed(2)}
-          unit={assessment.gpp_daily.unit}
-        />
+      <div style={{ fontSize: '11px', color: colors.textMuted }}>
+        {row.computed_through ? `${t('computed_through')}: ${row.computed_through}` : t('campaign_not_computed')}
       </div>
 
-      {/* Gaps (top 2) */}
-      {gaps.length > 0 && (
-        <div>
-          <div
-            style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              color: '#6B7280',
-              textTransform: 'uppercase',
-              marginBottom: '6px',
-            }}
-          >
-            {t('gaps')}
-          </div>
-          <CarbonGapList
-            gaps={gaps}
-            missingForNextTier={assessment.missing_for_next_tier}
-            maxItems={2}
-          />
-        </div>
-      )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+        <CompactKPI label={t('co2_gross')} value={fmt(row.co2_sequestered_gross, 1)} unit={t('units.tCO2_ha')} />
+        <CompactKPI label={t('soilCarbonDelta')} value={fmtSigned(row.soil_carbon_delta)} unit={t('units.tC_ha')} />
+        <CompactKPI label={t('cover_days')} value={String(row.cover_days)} unit={`${t('bare_days')}: ${row.bare_days}`} />
+        <CompactKPI label={t('co2eq_net')} value={fmtSigned(row.co2eq_net, 1)} unit={t('units.tCO2eq_ha')} />
+      </div>
 
-      {/* Calculate button */}
-      <Button
-        onClick={handleCalculate}
-        loading={calculating}
-        variant="primary"
-        size="md"
-        style={{ width: '100%' }}
-      >
-        {calculating ? t('calculating') : t('calculate')}
+      <div>
+        <div style={{ fontSize: '11px', fontWeight: 600, color: colors.textSecondary, textTransform: 'uppercase',
+          marginBottom: '6px' }}>
+          {t('missing_title')}
+        </div>
+        <CarbonMissingList missing={row.missing} maxItems={2} />
+      </div>
+
+      <Button onClick={handleCalculate} loading={calculating} variant="primary" size="md" style={{ width: '100%' }}>
+        {calculating ? t('calculating') : t('recalculate')}
       </Button>
     </div>
   );
 };
 
-function CompactKPI({
-  label,
-  value,
-  unit,
-}: {
-  label: string;
-  value: string;
-  unit: string;
-}) {
+function CompactKPI({ label, value, unit }: { label: string; value: string; unit: string }) {
   return (
-    <div
-      style={{
-        padding: '8px',
-        backgroundColor: '#F9FAFB',
-        borderRadius: '6px',
-        border: '1px solid #E5E7EB',
-        minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          fontSize: '10px',
-          color: '#9CA3AF',
-          marginBottom: '2px',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-      >
+    <div style={{ padding: '8px', backgroundColor: colors.bgSubtle, borderRadius: '6px',
+      border: `1px solid ${colors.border}`, minWidth: 0 }}>
+      <div style={{ fontSize: '10px', color: colors.textMuted, marginBottom: '2px', whiteSpace: 'nowrap',
+        overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {label}
       </div>
-      <div
-        style={{
-          fontSize: '15px',
-          fontWeight: 600,
-          color: '#111827',
-          lineHeight: 1.2,
-        }}
-      >
-        {value}
-      </div>
-      <div
-        style={{
-          fontSize: '10px',
-          color: '#9CA3AF',
-        }}
-      >
-        {unit}
-      </div>
+      <div style={{ fontSize: '15px', fontWeight: 600, color: colors.textPrimary, lineHeight: 1.2 }}>{value}</div>
+      <div style={{ fontSize: '10px', color: colors.textMuted }}>{unit}</div>
     </div>
   );
 }

@@ -29,7 +29,7 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
     const baseline = data.baseline_soc;
     const project = data.project_soc;
 
-    if (!baseline.length || !project.length) {
+    if (!project.length) {
       return { points: [], yMax: 0, yMin: 0, pathBaseline: '', pathProject: '' };
     }
 
@@ -43,9 +43,8 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
 
     const pts = Array.from({ length: years }, (_, i) => ({
       x: scaleX(i),
-      y0: scaleY(baseline[i] ?? 0),
-      y1: scaleY(project[i] ?? 0),
-      label: `${i}`,
+      y1: scaleY(project[i]),
+      label: `${i + 1}`,
     }));
 
     const buildPath = (arr: number[]) =>
@@ -61,7 +60,7 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
       points: pts,
       yMax: yMaxVal,
       yMin: yMinVal,
-      pathBaseline: buildPath(baseline),
+      pathBaseline: baseline.length ? buildPath(baseline) : '',
       pathProject: buildPath(project),
     };
   }, [data]);
@@ -70,9 +69,10 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
     ? data.annual_delta_tC_ha_yr[data.annual_delta_tC_ha_yr.length - 1]
     : 0;
 
-  const { years } = data;
+  const years = data.projection_years;
+  const hasBaseline = data.baseline_soc.length > 0;
 
-  if (!data.baseline_soc.length || !data.project_soc.length) {
+  if (!data.project_soc.length) {
     return (
       <div
         style={{
@@ -96,7 +96,7 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
 
   const xTickCount = Math.min(years, 6);
   const xTicks = Array.from({ length: xTickCount }, (_, i) => {
-    const idx = Math.round((i * (years - 1)) / (xTickCount - 1));
+    const idx = Math.round((i * (years - 1)) / (xTickCount - 1 || 1));
     return { idx, label: `${idx}` };
   });
 
@@ -165,7 +165,9 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
         </text>
 
         {/* Baseline line */}
-        <path d={pathBaseline} fill="none" stroke={COLORS.baseline} strokeWidth={2} strokeDasharray="6,3" />
+        {hasBaseline && (
+          <path d={pathBaseline} fill="none" stroke={COLORS.baseline} strokeWidth={2} strokeDasharray="6,3" />
+        )}
         {/* Project line */}
         <path d={pathProject} fill="none" stroke={COLORS.project} strokeWidth={2.5} />
 
@@ -175,10 +177,14 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
           <text x={20} y={4} fontSize={11} fill={COLORS.project}>
             {t('project')}
           </text>
-          <line x1={0} y1={16} x2={16} y2={16} stroke={COLORS.baseline} strokeWidth={2} strokeDasharray="6,3" />
-          <text x={20} y={20} fontSize={11} fill={COLORS.baseline}>
-            {t('baseline')}
-          </text>
+          {hasBaseline && (
+            <>
+              <line x1={0} y1={16} x2={16} y2={16} stroke={COLORS.baseline} strokeWidth={2} strokeDasharray="6,3" />
+              <text x={20} y={20} fontSize={11} fill={COLORS.baseline}>
+                {t('baseline')}
+              </text>
+            </>
+          )}
         </g>
       </svg>
 
@@ -195,10 +201,10 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
             textAlign: 'center',
           }}
         >
-          {t('soilCarbonDelta')}:{' '}
+          {t('delta_vs_baseline')}:{' '}
           <strong style={{ color: finalDelta > 0 ? '#059669' : '#DC2626' }}>
             {finalDelta > 0 ? '+' : ''}
-            {finalDelta.toFixed(2)} {t('units.tC_ha_yr')}
+            {finalDelta.toFixed(2)} {t('units.tC_ha')}
           </strong>
         </div>
       )}

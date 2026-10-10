@@ -8,64 +8,95 @@ const API_BASE = (typeof process !== 'undefined' && process.env?.VITE_API_URL)
     }/api/carbon`
   : '/api/carbon';
 
-export interface CarbonValue {
-  value: number;
-  unit: string;
+export type CarbonPools = Record<'DPM' | 'RPM' | 'BIO' | 'HUM' | 'IOM', number>;
+
+export interface MissingItem {
+  item: string;
+  reason: string;
+  effect: string;
 }
 
-export interface CarbonPools {
-  dpm_tC_ha: number;
-  rpm_tC_ha: number;
-  bio_tC_ha: number;
-  hum_tC_ha: number;
-  iom_tC_ha: number;
-  total_tC_ha: number;
+export interface CycleResult {
+  crop_id: string;
+  species: string;
+  role: string;
+  start: string;
+  end: string | null;
+  start_provenance: string;
+  end_provenance: string | null;
+  campaign_label: number | null;
+  days_in_period: number;
+  days_computed: number;
+  npp_tC_ha: number;
+  c_to_soil_tC_ha: number | null;
+  exported_c_tC_ha: number | null;
 }
 
-export interface CarbonAssessment {
-  entity_id: string;
-  assessment_date: string;
-  tier: number;
-  methodology: string;
-  confidence: number;
-  confidence_interval_pct: number;
-  gpp_daily: CarbonValue;
-  npp_daily: CarbonValue;
-  co2_sequestered_daily: CarbonValue;
-  co2_sequestered_cumulative: CarbonValue;
-  agb_dry: CarbonValue;
-  bgb_dry: CarbonValue;
-  soil_carbon_delta: CarbonValue | null;
-  carbon_stock_total: CarbonValue | null;
-  pools: CarbonPools | null;
-  co2eq_net_daily: CarbonValue | null;
-  co2eq_net_cumulative: CarbonValue | null;
-  gwp_standard: string;
-  missing_for_next_tier: string[];
+export interface MonthResult {
+  month: number;
+  temp_c: number;
+  rain_mm: number;
+  et0_mm: number;
+  covered: boolean;
+  cover_days: number;
+  plant_c_tC_ha: number;
+  fym_c_tC_ha: number;
+  co2_c_tC_ha: number | null;
+}
+
+/** One stored campaign balance. Carbon in tC/ha, CO2 in tCO2/ha; absent = not computed. */
+export interface CampaignRow {
+  parcel_id: string;
+  campaign_label: number;
+  period_start: string;
+  period_end: string;
+  computed_through?: string;
+  data_tier: number;
+  cover_days: number;
+  bare_days: number;
+  tier1_coverage: number;
+  gpp_total?: number;
+  npp_total?: number;
+  co2_sequestered_gross?: number;
+  heterotrophic_respiration?: number;
+  soc_start?: number;
+  soc_end?: number;
+  soil_carbon_delta?: number;
+  soil_carbon_delta_ci95?: number;
+  nee?: number;
+  necb?: number;
+  n2o_emissions?: number;
+  co2eq_net?: number;
+  gpp_ci95_pct?: number;
+  cycle_breakdown: CycleResult[];
+  monthly_balance: MonthResult[];
+  missing: MissingItem[];
+  assumptions: string[];
+  initial_state_source: string;
   data_sources: string[];
-  data_provenance: Record<string, string>;
+  calculated_at: string;
+  engine_version: string;
+  soil_clay_pct?: number;
+  soil_depth_cm?: number;
+  soil_source?: string;
+  pools_end?: CarbonPools | null;
+  pools_state_date?: string | null;
 }
 
-export interface GapItem {
-  source: string;
-  missing: boolean;
-  action: string;
-  auto_fill: string | null;
-}
-
-export interface TierInfo {
-  current_tier: number;
-  confidence: number;
-  available_data: string[];
-  gaps: GapItem[];
+export interface CampaignList {
+  parcel_id: string;
+  campaigns: CampaignRow[];
 }
 
 export interface ProjectionData {
   entity_id: string;
   projection_years: number;
+  reference_year: number | null;
   baseline_soc: number[];
   project_soc: number[];
   annual_delta_tC_ha_yr: number[];
+  assumptions: string[];
+  missing: MissingItem[];
 }
 
 export interface ManagementData {
@@ -91,19 +122,34 @@ export interface SensorInfo {
   longitude: number | null;
 }
 
+export interface MRVCampaign {
+  year: number;
+  computed_through: string | null;
+  tier: number | null;
+  delta_soc_tC_ha: number | null;
+  n2o_tCO2eq_ha: number | null;
+  co2eq_net_tCO2eq_ha: number | null;
+  baseline_delta_soc_tC_ha?: number | null;
+  missing: MissingItem[];
+}
+
 export interface MRVReport {
-  standard: string;
+  report_id: string;
+  report_type: string;
+  title: string;
+  standard_structure: string;
   generated_at: string;
-  entity_id: string;
+  reporting_period_start: string | null;
+  reporting_period_end: string | null;
+  campaigns: MRVCampaign[];
+  total_delta_soc_tC_ha: number | null;
+  total_co2eq_net_tCO2eq_ha: number | null;
+  baseline_reference_year: number | null;
+  net_emission_reductions_tCO2eq_ha: number | null;
   tier: number;
-  methodology: string;
-  net_emission_reductions: number;
-  verified_credits: number;
-  buffer_pool: number;
-  crediting_period_start: string;
-  crediting_period_end: string;
-  leakage: number;
-  uncertainty_deduction: number;
+  certification_gaps: string[];
+  assumptions: string[];
+  inputs_hash: string;
 }
 
 function getTenantId(): string {
@@ -133,12 +179,18 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export async function fetchAssessment(entityId: string): Promise<CarbonAssessment> {
-  return apiFetch<CarbonAssessment>(`/parcels/${encodeURIComponent(entityId)}/assessment`);
+const parcelPath = (entityId: string) => `/parcels/${encodeURIComponent(entityId)}`;
+
+export async function fetchCampaigns(entityId: string): Promise<CampaignList> {
+  return apiFetch<CampaignList>(`${parcelPath(entityId)}/campaigns`);
 }
 
-export async function fetchTierInfo(entityId: string): Promise<TierInfo> {
-  return apiFetch<TierInfo>(`/parcels/${encodeURIComponent(entityId)}/tier-info`);
+export async function fetchCampaign(entityId: string, year: number): Promise<CampaignRow> {
+  return apiFetch<CampaignRow>(`${parcelPath(entityId)}/campaigns/${year}`);
+}
+
+export async function calculateCampaign(entityId: string, year: number): Promise<CampaignRow> {
+  return apiFetch<CampaignRow>(`${parcelPath(entityId)}/campaigns/${year}/calculate`, { method: 'POST' });
 }
 
 export async function fetchManagement(entityId: string): Promise<ManagementData> {
@@ -156,51 +208,32 @@ export async function saveManagement(
   });
 }
 
-export async function triggerCalculation(
-  entityId: string,
-  options?: {
-    crop_species?: string;
-    lat?: number;
-    lon?: number;
-    management?: ManagementData;
-  },
-): Promise<CarbonAssessment> {
-  return apiFetch<CarbonAssessment>(`/parcels/${encodeURIComponent(entityId)}/calculate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      entity_id: entityId,
-      crop_species: options?.crop_species,
-      lat: options?.lat,
-      lon: options?.lon,
-      management: options?.management,
-    }),
-  });
-}
-
 export async function fetchProjection(entityId: string): Promise<ProjectionData> {
   return apiFetch<ProjectionData>(`/parcels/${encodeURIComponent(entityId)}/projection`);
+}
+
+function reportQuery(standard: string, fromYear?: number, toYear?: number): string {
+  const q = new URLSearchParams({ standard });
+  if (fromYear) q.set('from_year', String(fromYear));
+  if (toYear) q.set('to_year', String(toYear));
+  return q.toString();
 }
 
 export async function fetchMRVReport(
   entityId: string,
   standard: string = 'VM0042',
+  fromYear?: number,
+  toYear?: number,
 ): Promise<MRVReport> {
-  return apiFetch<MRVReport>(
-    `/parcels/${encodeURIComponent(entityId)}/mrv/report?standard=${encodeURIComponent(standard)}`,
-  );
+  return apiFetch<MRVReport>(`${parcelPath(entityId)}/mrv/report?${reportQuery(standard, fromYear, toYear)}`);
 }
 
-export async function downloadMRVReport(
-  entityId: string,
-  standard: string = 'VM0042',
-): Promise<void> {
-  const report = await fetchMRVReport(entityId, standard);
+export function downloadMRVReport(entityId: string, report: MRVReport): void {
   const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `carbon-mrv-${standard}-${entityId}.json`;
+  a.download = `carbon-monitoring-${report.standard_structure}-${entityId}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -223,22 +256,24 @@ export interface ParcelSummary {
   parcel_id: string;
   parcel_name: string;
   crop_species: string;
-  co2_captured_cumulative: number;
-  carbon_stock_total: number;
+  campaign_year: number | null;
+  computed_through: string | null;
   tier: number;
-  methodology: string;
-  last_calculation_date: string | null;
+  co2_gross_tCO2_ha: number | null;
+  delta_soc_tC_ha: number | null;
+  co2eq_net_tCO2eq_ha: number | null;
 }
 
 export interface YearlyAggregation {
   year: number;
-  total_co2_captured_kg: number;
-  avg_carbon_stock_tC_ha: number;
   parcel_count: number;
+  co2_gross_tCO2_ha_mean: number | null;
+  delta_soc_tC_ha_mean: number | null;
 }
 
 export interface TierSummaryResponse {
   tenant_id: string;
+  year: number;
   parcels: ParcelSummary[];
   yearly_aggregations: YearlyAggregation[];
 }

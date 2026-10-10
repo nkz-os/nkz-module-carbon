@@ -3,18 +3,19 @@ import { useTranslation } from '@nekazari/sdk';
 
 interface CarbonTierBadgeProps {
   tier: number;
-  confidence: number;
+  confidence?: number;
   compact?: boolean;
 }
 
 const TIER_COLORS: Record<number, { bg: string; text: string; border: string }> = {
+  0: { bg: '#F3F4F6', text: '#4B5563', border: '#D1D5DB' },
   1: { bg: '#FEF3C7', text: '#92400E', border: '#F59E0B' },
   2: { bg: '#DBEAFE', text: '#1E40AF', border: '#3B82F6' },
   3: { bg: '#D1FAE5', text: '#065F46', border: '#10B981' },
 };
 
 function getTierColor(tier: number) {
-  return TIER_COLORS[tier] || TIER_COLORS[1];
+  return TIER_COLORS[tier] || TIER_COLORS[0];
 }
 
 const CarbonTierBadge: React.FC<CarbonTierBadgeProps> = ({
@@ -41,11 +42,11 @@ const CarbonTierBadge: React.FC<CarbonTierBadgeProps> = ({
           border: `1px solid ${colors.border}`,
           whiteSpace: 'nowrap',
         }}
-        title={`${t('tier')} ${tier} - ${t('confidence')}: ${confidence.toFixed(1)}%`}
+        title={confidence === undefined ? `${t('tier')} ${tier}` : `${t('tier')} ${tier} - ${t('confidence')}: ${confidence.toFixed(1)}%`}
       >
         <span>T{tier}</span>
         <span style={{ fontSize: '10px', opacity: 0.7 }}>|</span>
-        <span>{confidence.toFixed(0)}%</span>
+        {confidence !== undefined && <span>{confidence.toFixed(0)}%</span>}
       </span>
     );
   }
@@ -73,15 +74,17 @@ const CarbonTierBadge: React.FC<CarbonTierBadgeProps> = ({
       >
         {t('tier')} {tier}
       </span>
-      <span
-        style={{
-          fontSize: '12px',
-          color: colors.text,
-          opacity: 0.8,
-        }}
-      >
-        {t('confidence')}: {confidence.toFixed(1)}%
-      </span>
+      {confidence !== undefined && (
+        <span
+          style={{
+            fontSize: '12px',
+            color: colors.text,
+            opacity: 0.8,
+          }}
+        >
+          {t('confidence')}: {confidence.toFixed(1)}%
+        </span>
+      )}
     </div>
   );
 };

@@ -7,6 +7,7 @@ import CarbonTierBadge from './CarbonTierBadge';
 import { fetchTenantSummary } from '../api/carbonApi';
 import { colors } from './styles';
 import type { ParcelSummary, YearlyAggregation } from '../api/carbonApi';
+import { DASH, currentYear, fmt, fmtSigned } from './campaignFormat';
 
 interface SummaryRow extends ParcelSummary {
   id: string;
@@ -21,14 +22,13 @@ const CarbonPage: React.FC = () => {
   const [yearlyData, setYearlyData] = useState<YearlyAggregation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>(String(currentYear()));
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const yearParam = selectedYear !== 'all' ? Number(selectedYear) : undefined;
-      const data = await fetchTenantSummary(yearParam);
+      const data = await fetchTenantSummary(Number(selectedYear));
       setSummary(data.parcels.map((p) => ({ ...p, id: p.parcel_id })));
       setYearlyData(data.yearly_aggregations);
     } catch (err) {
@@ -49,20 +49,13 @@ const CarbonPage: React.FC = () => {
     [setSearchParams],
   );
 
-  const yearOptions = [
-    { value: 'all', label: t('all_years') },
-    ...yearlyData.map((y) => ({
-      value: String(y.year),
-      label: String(y.year),
-    })),
-  ];
+  const yearOptions = Array.from(new Set([currentYear(), ...yearlyData.map((y) => y.year)]))
+    .sort((a, b) => b - a)
+    .map((y) => ({ value: String(y), label: String(y) }));
 
-  // Totals for metric cards
-  const totalCo2 = summary.reduce((sum, p) => sum + p.co2_captured_cumulative, 0);
-  const avgStock = summary.length > 0
-    ? summary.reduce((sum, p) => sum + p.carbon_stock_total, 0) / summary.length
-    : 0;
-  const parcelCount = summary.length;
+  // Metric cards: means over the parcels whose campaign is computed (absent values excluded)
+  const selectedAgg = yearlyData.find((y) => String(y.year) === selectedYear);
+  const computedCount = summary.filter((p) => p.campaign_year !== null).length;
 
   const columns = [
     {
@@ -91,53 +84,45 @@ const CarbonPage: React.FC = () => {
       header: t('crop_species'),
     },
     {
-      accessorKey: 'co2_captured_cumulative' as const,
-      header: t('co2_captured'),
-      cell: (info: { getValue: () => number }) =>
-        `${info.getValue().toFixed(1)} ${t('units.kgCO2_ha_day')}`,
+      accessorKey: 'co2_gross_tCO2_ha' as const,
+      header: t('co2_gross'),
+      cell: (info: { getValue: () => number | null }) => `${fmt(info.getValue(), 1)} ${t('units.tCO2_ha')}`,
     },
     {
-      accessorKey: 'carbon_stock_total' as const,
-      header: t('carbon_stock'),
-      cell: (info: { getValue: () => number }) =>
-        `${info.getValue().toFixed(2)} ${t('units.tC_ha')}`,
+      accessorKey: 'delta_soc_tC_ha' as const,
+      header: t('soilCarbonDelta'),
+      cell: (info: { getValue: () => number | null }) => `${fmtSigned(info.getValue())} ${t('units.tC_ha')}`,
+    },
+    {
+      accessorKey: 'co2eq_net_tCO2eq_ha' as const,
+      header: t('co2eq_net'),
+      cell: (info: { getValue: () => number | null }) => `${fmtSigned(info.getValue(), 1)} ${t('units.tCO2eq_ha')}`,
     },
     {
       accessorKey: 'tier' as const,
       header: t('tier'),
-      cell: (info: { getValue: () => number; row: { original: SummaryRow } }) => (
-        <CarbonTierBadge
-          tier={info.getValue()}
-          confidence={0}
-          compact
-        />
-      ),
+      cell: (info: { getValue: () => number }) => <CarbonTierBadge tier={info.getValue()} compact />,
     },
     {
-      accessorKey: 'methodology' as const,
-      header: t('methodology'),
-    },
-    {
-      accessorKey: 'last_calculation_date' as const,
-      header: t('last_calculation'),
+      accessorKey: 'computed_through' as const,
+      header: t('computed_through'),
+      cell: (info: { getValue: () => string | null }) => info.getValue() ?? DASH,
     },
   ];
 
   const yearlyColumns = [
     { accessorKey: 'year' as const, header: t('year') },
     {
-      accessorKey: 'total_co2_captured_kg' as const,
-      header: t('total_co2_all_parcels'),
-      cell: (info: { getValue: () => number }) =>
-        `${info.getValue().toFixed(1)} ${t('units.kgCO2_ha_day')}`,
+      accessorKey: 'co2_gross_tCO2_ha_mean' as const,
+      header: t('co2_gross_mean'),
+      cell: (info: { getValue: () => number | null }) => `${fmt(info.getValue(), 1)} ${t('units.tCO2_ha')}`,
     },
     {
-      accessorKey: 'avg_carbon_stock_tC_ha' as const,
-      header: t('avg_carbon_stock'),
-      cell: (info: { getValue: () => number }) =>
-        `${info.getValue().toFixed(2)} ${t('units.tC_ha')}`,
+      accessorKey: 'delta_soc_tC_ha_mean' as const,
+      header: t('delta_soc_mean'),
+      cell: (info: { getValue: () => number | null }) => `${fmtSigned(info.getValue())} ${t('units.tC_ha')}`,
     },
-    { accessorKey: 'parcel_count' as const, header: t('active_parcels') },
+    { accessorKey: 'parcel_count' as const, header: t('parcel_count') },
   ];
 
   // Loading
@@ -210,18 +195,18 @@ const CarbonPage: React.FC = () => {
       {/* KPIs */}
       <MetricGrid columns={3}>
         <MetricCard
-          label={t('total_co2_all_parcels')}
-          value={totalCo2.toFixed(1)}
-          unit={t('units.kgCO2_ha_day')}
+          label={t('co2_gross_mean')}
+          value={fmt(selectedAgg?.co2_gross_tCO2_ha_mean, 1)}
+          unit={t('units.tCO2_ha')}
         />
         <MetricCard
-          label={t('avg_carbon_stock')}
-          value={avgStock.toFixed(2)}
+          label={t('delta_soc_mean')}
+          value={fmtSigned(selectedAgg?.delta_soc_tC_ha_mean)}
           unit={t('units.tC_ha')}
         />
         <MetricCard
-          label={t('active_parcels')}
-          value={parcelCount}
+          label={t('parcels_computed')}
+          value={`${computedCount} / ${summary.length}`}
         />
       </MetricGrid>
 
