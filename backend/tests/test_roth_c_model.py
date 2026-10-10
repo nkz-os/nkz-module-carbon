@@ -7,7 +7,7 @@ from app.services.roth_c_model import (
     compute_monthly_tsmd,
     init_pools_weihermuller,
     compute_c_inputs,
-    step_month,
+    legacy_step_month as step_month,
     run_rothc_monthly,
     PoolState,
     MonthlyInputs,

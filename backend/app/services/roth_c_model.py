@@ -249,7 +249,7 @@ def compute_c_inputs(monthly: MonthlyInputs) -> tuple[float, float, float]:
 
 # -- Monthly evolution (spec 4.7) --
 
-def step_month(
+def legacy_step_month(
     pools: PoolState, monthly: MonthlyInputs, tsmd: float,
 ) -> tuple[PoolState, float]:
     """Advance RothC pools by one month. Returns (new_pools, rh_tC_ha_month)."""
@@ -310,7 +310,7 @@ def run_rothc_monthly(
 
     for i, monthly in enumerate(monthly_inputs):
         tsmd = tsmd_series[i]
-        pools, rh_month = step_month(pools, monthly, tsmd)
+        pools, rh_month = legacy_step_month(pools, monthly, tsmd)
         total_rh_tC_ha += rh_month
 
     soc_initial = initial_pools.total_tC_ha
