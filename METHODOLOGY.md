@@ -156,7 +156,8 @@ Latin-hypercube samples of the plant-input multiplier. Soil-property uncertainty
 
 1. **Official RothC example:** monthly pools and SOC match the published results (relative error < 10⁻⁶).
 2. **Mass conservation:** each RothC step and each campaign balance closes to 10⁻⁹ tC/ha.
-3. **Rothamsted Broadbalk:** directional check, FYM > NPK > control.
+3. **Rothamsted Hoosfield worked example** (official model description, published inputs): the unmanured plot declines
+   from the pre-experiment equilibrium, annual FYM accumulates, FYM for 20 years ends in between.
 4. **Monotonicity:** more organic amendment never lowers final SOC.
 
 ## 9. References
