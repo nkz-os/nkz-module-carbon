@@ -6,7 +6,7 @@ from typing import Any, Optional
 from app.ngsild.entities import _context
 from app.platform.crop_client import canonical_parcel_urn, parcel_short
 from app.services.campaign_balance import ENGINE_VERSION
-from app.services.campaign_types import CampaignBalance, CycleResult, MonthResult
+from app.services.campaign_types import CampaignBalance, CycleResult, MonthResult, SoilInit
 from app.services.roth_c_model import RothCPools, RothCState
 
 
@@ -38,7 +38,8 @@ def _month(m: MonthResult) -> dict:
     }
 
 
-def build_campaign_assessment(tenant_id: str, parcel_id: str, b: CampaignBalance, sources: list[str]) -> dict:
+def build_campaign_assessment(tenant_id: str, parcel_id: str, b: CampaignBalance, sources: list[str],
+                              soil: Optional[SoilInit] = None) -> dict:
     short = parcel_short(parcel_id)
     entity: dict[str, Any] = {
         "id": f"urn:ngsi-ld:CarbonAssessment:{tenant_id}:{short}:{b.year}",
@@ -78,6 +79,9 @@ def build_campaign_assessment(tenant_id: str, parcel_id: str, b: CampaignBalance
         "n2oEmissions": (b.n2o_tCO2eq_ha, "tCO2eq/ha"),
         "co2eqNet": (b.co2eq_net_tCO2eq_ha, "tCO2eq/ha"),
         "gppCi95Pct": (b.gpp_ci95_pct, None),
+        "soilClayPct": (soil.clay_pct if soil else None, "%"),
+        "soilDepthCm": (soil.depth_cm if soil else None, "cm"),
+        "soilSource": (soil.source if soil else None, None),
     }
     # Units are fixed per attribute (see the API models and METHODOLOGY.md); there is
     # no UN/CEFACT code for tC/ha, so none is attached.

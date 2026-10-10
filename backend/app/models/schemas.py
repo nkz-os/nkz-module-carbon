@@ -99,12 +99,15 @@ class HistoryResponse(BaseModel):
 
 
 class ProjectionResponse(BaseModel):
-    """20-year RothC projection comparing baseline vs project management."""
+    """RothC projection from the last complete campaign; baseline only when defined."""
     entity_id: str
     projection_years: int
-    baseline_soc: list[float]
-    project_soc: list[float]
-    annual_delta_tC_ha_yr: list[float]
+    reference_year: Optional[int] = None
+    baseline_soc: list[float] = []
+    project_soc: list[float] = []
+    annual_delta_tC_ha_yr: list[float] = []
+    assumptions: list[str] = []
+    missing: list[dict] = []
 
 
 # ---------------------------------------------------------------------------

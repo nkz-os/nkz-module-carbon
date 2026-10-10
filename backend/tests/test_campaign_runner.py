@@ -171,3 +171,41 @@ async def test_audit_row_written_best_effort(env, monkeypatch):
     kwargs = audit.await_args.kwargs
     assert kwargs["tier"] == b.tier and kwargs["entity_id"] == "urn:ngsi-ld:AgriParcel:abc"
     assert kwargs["results"]["computed_through"] == "2026-09-30"
+
+
+@pytest.mark.asyncio
+async def test_projection_needs_a_complete_campaign(env):
+    await cr.run_campaign("t1", "abc", 2026, today=TODAY)  # open campaign only
+    p = await cr.projection("t1", "abc", years=5)
+    assert p["project_soc"] == [] and p["missing"][0]["item"] == "complete_campaign" and p["reference_year"] is None
+
+
+@pytest.mark.asyncio
+async def test_projection_repeats_last_complete_campaign(env):
+    await cr.run_campaign("t1", "abc", 2025, today=TODAY)
+    p = await cr.projection("t1", "abc", years=3)
+    assert p["reference_year"] == 2025 and len(p["project_soc"]) == 3
+    assert p["baseline_soc"] == [] and any("baseline" in a for a in p["assumptions"])
+
+
+@pytest.mark.asyncio
+async def test_projection_and_report_with_baseline(env):
+    store, _ = env
+    await cr.run_campaign("t1", "abc", 2025, today=TODAY)
+    await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    store.entities[("t1", "urn:ngsi-ld:BaselineScenario:t1:abc")] = {
+        "id": "urn:ngsi-ld:BaselineScenario:t1:abc", "type": "BaselineScenario",
+        "validFrom": {"type": "Property", "value": "2025-01-01"}}
+    p = await cr.projection("t1", "abc", years=2)
+    assert len(p["baseline_soc"]) == 2 and len(p["annual_delta_tC_ha_yr"]) == 2
+    r = await cr.monitoring_report("t1", "abc", "VM0042", 2025, 2026)
+    assert r["baseline_reference_year"] == 2025 and [c["year"] for c in r["campaigns"]] == [2025, 2026]
+    # the reference campaign replayed under its own climate is itself: no reduction that year
+    assert r["campaigns"][0]["baseline_delta_soc_tC_ha"] == pytest.approx(r["campaigns"][0]["delta_soc_tC_ha"])
+    assert r["net_emission_reductions_tCO2eq_ha"] is not None
+
+
+@pytest.mark.asyncio
+async def test_report_without_campaigns_is_empty(env):
+    r = await cr.monitoring_report("t1", "abc", "VM0042", None, None)
+    assert r["campaigns"] == [] and r["net_emission_reductions_tCO2eq_ha"] is None

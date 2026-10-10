@@ -106,3 +106,28 @@ def test_setup_parcel_no_longer_writes_default_stock(client, monkeypatch):
     assert r.status_code == 200 and r.json()["scheduled"] is True
     upsert.assert_not_called()
     run.assert_awaited_once()
+
+
+def test_projection_and_mrv_routes_use_stored_campaigns(monkeypatch):
+    from app.api import assessments, mrv
+    app = FastAPI()
+    app.include_router(assessments.router)
+    app.include_router(mrv.router)
+    c = TestClient(app)
+    proj = {"entity_id": "abc", "projection_years": 5, "reference_year": None, "baseline_soc": [],
+            "project_soc": [], "annual_delta_tC_ha_yr": [], "assumptions": [],
+            "missing": [{"item": "complete_campaign", "reason": "x", "effect": "no_projection"}]}
+    monkeypatch.setattr(assessments, "projection", AsyncMock(return_value=proj))
+    r = c.get("/api/carbon/parcels/abc/projection?years=5", headers=H)
+    assert r.status_code == 200 and r.json()["missing"][0]["item"] == "complete_campaign"
+    report = AsyncMock(return_value={"report_type": "monitoring_estimate"})
+    monkeypatch.setattr(mrv, "monitoring_report", report)
+    r = c.get("/api/carbon/parcels/abc/mrv/report?standard=VM0042&from_year=2025&to_year=2026", headers=H)
+    assert r.status_code == 200 and r.json()["report_type"] == "monitoring_estimate"
+    assert report.await_args.args[1:] == ("abc", "VM0042", 2025, 2026)
+
+
+def test_scenario_recalculate_route_is_gone():
+    from app.api import scenarios
+    paths = {r.path for r in scenarios.router.routes}
+    assert not any(p.endswith("/recalculate") for p in paths)

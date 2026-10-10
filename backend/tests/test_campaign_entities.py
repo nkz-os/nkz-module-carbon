@@ -44,3 +44,7 @@ def test_assessment_entity_shape():
     assert set(m0) >= {"month", "temp_c", "rain_mm", "et0_mm", "covered", "plant_c_tC_ha", "fym_c_tC_ha", "co2_c_tC_ha"}
     assert "nee" not in e  # tier 2: absent values are not written
     assert e["missing"]["value"] == [m.to_dict() for m in b.missing]
+    assert "soilClayPct" not in e
+    from app.services.campaign_types import SoilInit
+    e2 = build_campaign_assessment("t1", "abc", b, [], soil=SoilInit(40.0, 21.0, 30.0, "soilgrids"))
+    assert e2["soilClayPct"]["value"] == 21.0 and e2["soilDepthCm"]["value"] == 30.0

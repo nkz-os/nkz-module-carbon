@@ -78,6 +78,8 @@ from app.platform.weather_client import (
 from app.platform.vegetation_client import resolve_vi_for_parcel
 from app.platform.soil_client import fetch_parcel_soil
 from app.platform.bioorchestrator_client import fetch_phenology_params
+from app.platform.errors import SourceUnavailable
+from app.services.campaign_runner import projection
 from app.platform.crop_client import (
     fetch_assigned_crop,
     fetch_parcel_coordinates,
@@ -805,101 +807,22 @@ async def get_tier_info(
 @router.get(
     "/parcels/{entity_id}/projection",
     response_model=ProjectionResponse,
-    responses={400: {"model": ErrorResponse}},
+    responses={503: {"model": ErrorResponse}},
 )
 async def get_projection(
     entity_id: str,
     years: int = Query(default=20, ge=1, le=50),
     auth: AuthContext = require_auth(),
 ):
-    """Run a RothC 20-year (default) projection.
+    """SOC projection from the last complete campaign (its climate and management repeated).
 
-    Uses default soil params and climate normals. Provide management
-    data via POST management endpoint to refine.
+    With a baseline scenario, its reference campaign is replayed under the same climate.
+    Without a complete campaign the lists are empty and ``missing`` says why.
     """
-    tenant_id = auth.tenant_id
-    # Fetch real soil data from Orion-LD, fall back to defaults
-    soil = await fetch_parcel_soil(entity_id, tenant_id)
-    clay_pct = soil.clay_pct
-    soc_initial = soil.soc_tC_ha
-    initial_pools = init_pools_weihermuller(soc_initial, clay_pct)
-
-    # Simplified monthly climate normals
-    monthly_temps = [6, 7, 10, 13, 17, 21, 25, 24, 20, 15, 10, 7]
-    monthly_precip = [40, 35, 40, 50, 55, 40, 25, 25, 35, 50, 50, 45]
-    monthly_etp = [20, 30, 60, 90, 120, 140, 160, 140, 100, 60, 30, 20]
-    cover_months = [False, False, True, True, True, True, True, True, True, True, False, False]
-
-    # Baseline: conventional tillage, no cover crop, residues left
-    # Project: reduced tillage, cover crop, residues retained
-
-    total_months = years * 12
-    baseline_pools = initial_pools
-    project_pools = initial_pools
-    baseline_soc_progression: list[float] = []
-    project_soc_progression: list[float] = []
-
-    # Build all months upfront for correct TSMD accumulation (runs once)
-    baseline_months: list[MonthlyInputs] = []
-    project_months: list[MonthlyInputs] = []
-
-    for y in range(years):
-        for m in range(12):
-            c_input_base = 0.4 if cover_months[m] else 0.1
-            c_input_proj = 0.6 if cover_months[m] else 0.1
-
-            baseline_months.append(MonthlyInputs(
-                temp_celsius=monthly_temps[m],
-                precip_mm=monthly_precip[m],
-                etp_mm=monthly_etp[m],
-                cover_present=cover_months[m],
-                c_input_aerea_tC_ha=c_input_base * 0.6,
-                c_input_raices_tC_ha=c_input_base * 0.3,
-                c_input_exudados_tC_ha=c_input_base * 0.07,
-                clay_pct=clay_pct,
-            ))
-            project_months.append(MonthlyInputs(
-                temp_celsius=monthly_temps[m],
-                precip_mm=monthly_precip[m],
-                etp_mm=monthly_etp[m],
-                cover_present=True,  # cover crop extends year-round cover
-                c_input_aerea_tC_ha=c_input_proj * 0.6,
-                c_input_raices_tC_ha=c_input_proj * 0.3,
-                c_input_exudados_tC_ha=c_input_proj * 0.07,
-                c_input_enmienda_tC_ha=0.1,
-                clay_pct=clay_pct,
-            ))
-
-    # Run RothC once across the full timeseries for correct TSMD dynamics
-    base_result = run_rothc_monthly(initial_pools, baseline_months, clay_pct)
-    proj_result = run_rothc_monthly(initial_pools, project_months, clay_pct)
-
-    # Extract yearly SOC from the monthly TSMD (take last month of each year)
-    baseline_tsmd = base_result.monthly_tsmd
-    # Reconstruct yearly progression: rerun year-by-year for tracking
-    b_pools = initial_pools
-    p_pools = initial_pools
-    for y in range(years):
-        year_slice = slice(y * 12, (y + 1) * 12)
-        b_year = run_rothc_monthly(b_pools, baseline_months[year_slice], clay_pct)
-        p_year = run_rothc_monthly(p_pools, project_months[year_slice], clay_pct)
-        b_pools = b_year.pools
-        p_pools = p_year.pools
-        baseline_soc_progression.append(round(b_pools.total_tC_ha, 4))
-        project_soc_progression.append(round(p_pools.total_tC_ha, 4))
-
-    annual_delta = [
-        round(p - b, 4)
-        for p, b in zip(project_soc_progression, baseline_soc_progression)
-    ]
-
-    return ProjectionResponse(
-        entity_id=entity_id,
-        projection_years=years,
-        baseline_soc=baseline_soc_progression,
-        project_soc=project_soc_progression,
-        annual_delta_tC_ha_yr=annual_delta,
-    )
+    try:
+        return await projection(auth.tenant_id, entity_id, years)
+    except SourceUnavailable as exc:
+        raise HTTPException(status_code=503, detail={"error": "source_unavailable", "detail": str(exc)})
 
 
 # ---------------------------------------------------------------------------

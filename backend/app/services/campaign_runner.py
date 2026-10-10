@@ -23,7 +23,11 @@ from app.services.campaign_balance import ENGINE_VERSION, compute_campaign_balan
 from app.services.campaign_types import (
     NO_DECLARED_MANAGEMENT, CampaignBalance, CampaignInputs, CycleSpan, DeclaredManagement, Missing,
 )
+from app.services.campaign_reports import (
+    build_monitoring_report, combine_months, is_complete, months_from_row, project_soc,
+)
 from app.services.crop_params import resolve_crop_params
+from app.services.roth_c_model import RothCState, run_months, weihermuller_pools
 
 logger = logging.getLogger(__name__)
 
@@ -209,7 +213,7 @@ async def run_campaign(
         sources.append(f"soil_{soil.source}")
     sources += sorted({f"crop_params_{p.source}" for p, _ in params_by_species.values() if p is not None})
     orion = get_orion_client()
-    await orion.upsert_entity(build_campaign_assessment(tenant_id, urn, balance, sources), tenant_id)
+    await orion.upsert_entity(build_campaign_assessment(tenant_id, urn, balance, sources, soil), tenant_id)
     if balance.end_state is not None and balance.computed_through is not None:
         await orion.upsert_entity(
             build_campaign_stock(tenant_id, urn, year, balance.end_state, balance.computed_through), tenant_id)
@@ -264,3 +268,91 @@ async def get_campaign(tenant_id: str, parcel_id: str, year: int) -> Optional[di
 
 async def get_campaign_stock(tenant_id: str, parcel_id: str, year: int) -> Optional[dict]:
     return await _get(tenant_id, _stock_id(tenant_id, parcel_short(parcel_id), year))
+
+
+# ---------------------------------------------------------------------------
+# Projection and monitoring report over stored campaigns
+# ---------------------------------------------------------------------------
+
+async def _baseline_year(tenant_id: str, short: str) -> Optional[int]:
+    e = await _get(tenant_id, f"urn:ngsi-ld:BaselineScenario:{tenant_id}:{short}")
+    vf = str(_v(e, "validFrom") or "") if e else ""
+    return int(vf[:4]) if vf[:4].isdigit() else None
+
+
+async def _start_state(tenant_id: str, short: str, row: dict) -> Optional[RothCState]:
+    """The state a stored campaign started from: previous 31 Dec stock, or its soil init."""
+    year = row["campaign_label"]
+    prev = await _get(tenant_id, _stock_id(tenant_id, short, year - 1))
+    if prev:
+        state, when = stock_state(prev)
+        if when == date(year - 1, 12, 31):
+            return state
+    if row.get("soc_start") is None or row.get("soil_clay_pct") is None:
+        return None
+    return RothCState(weihermuller_pools(float(row["soc_start"]), float(row["soil_clay_pct"])), 0.0)
+
+
+def _usable(row: dict) -> bool:
+    return (row.get("data_tier") or 0) >= 2 and row.get("soil_clay_pct") is not None and bool(row.get("monthly_balance"))
+
+
+async def projection(tenant_id: str, parcel_id: str, years: int = 20) -> dict:
+    short = parcel_short(parcel_id)
+    rows = await list_campaigns(tenant_id, parcel_id)
+    ref = next((r for r in reversed(rows) if _usable(r) and is_complete(r)), None)
+    out = {"entity_id": short, "projection_years": years, "reference_year": None, "baseline_soc": [],
+           "project_soc": [], "annual_delta_tC_ha_yr": [], "assumptions": [], "missing": []}
+    if ref is None:
+        out["missing"].append({"item": "complete_campaign", "reason": "no complete campaign with a soil balance",
+                               "effect": "no_projection"})
+        return out
+    stock = await _get(tenant_id, _stock_id(tenant_id, short, ref["campaign_label"]))
+    if stock is None:
+        out["missing"].append({"item": "complete_campaign", "reason": "reference campaign without stored pools",
+                               "effect": "no_projection"})
+        return out
+    start, _ = stock_state(stock)
+    clay, depth = float(ref["soil_clay_pct"]), float(ref.get("soil_depth_cm") or 30.0)
+    climate = months_from_row(ref)
+    out["reference_year"] = ref["campaign_label"]
+    out["project_soc"] = project_soc(start, climate, clay, depth, years)
+    out["assumptions"].append(f"climate and management of {ref['campaign_label']} repeated every year")
+    b_year = await _baseline_year(tenant_id, short)
+    b_row = next((r for r in rows if r["campaign_label"] == b_year and _usable(r) and is_complete(r)), None)
+    if b_row is None:
+        out["assumptions"].append("no baseline defined: only the current management is projected")
+    else:
+        out["baseline_soc"] = project_soc(start, combine_months(climate, months_from_row(b_row)), clay, depth, years)
+        out["annual_delta_tC_ha_yr"] = [p - b for p, b in zip(out["project_soc"], out["baseline_soc"])]
+        out["assumptions"].append(f"baseline: management of {b_year} under the same climate")
+    return out
+
+
+async def monitoring_report(tenant_id: str, parcel_id: str, standard: str,
+                            from_year: Optional[int], to_year: Optional[int]) -> dict:
+    short, urn = parcel_short(parcel_id), canonical_parcel_urn(parcel_id)
+    rows = await list_campaigns(tenant_id, parcel_id)
+    if rows:
+        to_year = to_year or rows[-1]["campaign_label"]
+        from_year = from_year or to_year
+    chosen = [r for r in rows if from_year is not None and from_year <= r["campaign_label"] <= to_year]
+    baseline = None
+    b_year = await _baseline_year(tenant_id, short)
+    b_row = next((r for r in rows if r["campaign_label"] == b_year and _usable(r) and is_complete(r)), None)
+    if b_row is not None:
+        inputs = months_from_row(b_row)
+        deltas: dict[int, Optional[float]] = {}
+        n2o: dict[int, Optional[float]] = {}
+        for r in chosen:
+            start = await _start_state(tenant_id, short, r) if _usable(r) else None
+            if start is None:
+                deltas[r["campaign_label"]] = None
+                continue
+            months = combine_months(months_from_row(r), inputs)
+            clay, depth = float(r["soil_clay_pct"]), float(r.get("soil_depth_cm") or 30.0)
+            deltas[r["campaign_label"]] = run_months(start, months, clay, depth).final.pools.total - start.pools.total
+            if is_complete(r):
+                n2o[r["campaign_label"]] = b_row.get("n2o_emissions")
+        baseline = {"reference_year": b_year, "delta_soc_by_year": deltas, "n2o_by_year": n2o}
+    return build_monitoring_report(tenant_id, urn, standard, chosen, baseline)

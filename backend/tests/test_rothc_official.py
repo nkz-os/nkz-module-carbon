@@ -66,3 +66,11 @@ def test_cold_month_does_not_decompose():
     s0 = RothCState(RothCPools(0.2, 5.0, 0.7, 27.0, 3.0), swc_mm=0.0)
     s1, co2 = step_month(s0, RothCMonth(-6.0, 30.0, 5.0, True), 20.0, 23.0)
     assert co2 == 0.0 and s1.pools == s0.pools
+
+
+@pytest.mark.parametrize("soc,clay", [(40.0, 20.0), (12.0, 35.0), (80.0, 5.0)])
+def test_weihermuller_keeps_the_measured_stock(soc, clay):
+    from app.services.roth_c_model import weihermuller_pools
+    p = weihermuller_pools(soc, clay)
+    assert p.total == pytest.approx(soc, abs=1e-12)
+    assert min(p.dpm, p.rpm, p.bio, p.hum, p.iom) >= 0.0

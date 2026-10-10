@@ -455,6 +455,17 @@ def equilibrium(year: Sequence[RothCMonth], clay_pct: float, depth_cm: float, io
 
 
 def weihermuller_pools(soc_tC_ha: float, clay_pct: float) -> RothCPools:
-    """Pool partition of a measured SOC stock (Weihermüller et al. 2013)."""
+    """Pool partition of a measured SOC stock (Weihermüller et al. 2013).
+
+    DPM is the remainder. When the other pools already exceed the stock, DPM is 0 and
+    RPM/BIO/HUM are scaled down so the pools add up to the measured SOC: the
+    partition must never create carbon.
+    """
     old = init_pools_weihermuller(soc_tC_ha, clay_pct)
-    return RothCPools(old.dpm_tC_ha, old.rpm_tC_ha, old.bio_tC_ha, old.hum_tC_ha, old.iom_tC_ha)
+    iom = min(old.iom_tC_ha, soc_tC_ha)
+    active = old.rpm_tC_ha + old.bio_tC_ha + old.hum_tC_ha
+    room = soc_tC_ha - iom
+    if active <= room:
+        return RothCPools(room - active, old.rpm_tC_ha, old.bio_tC_ha, old.hum_tC_ha, iom)
+    k = room / active if active > 0 else 0.0
+    return RothCPools(0.0, old.rpm_tC_ha * k, old.bio_tC_ha * k, old.hum_tC_ha * k, iom)
