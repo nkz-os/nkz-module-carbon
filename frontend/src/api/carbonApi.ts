@@ -81,6 +81,33 @@ export interface CampaignRow {
   soil_source?: string;
   pools_end?: CarbonPools | null;
   pools_state_date?: string | null;
+  inputs_summary?: InputsSummary;
+}
+
+export interface ViSummary {
+  scenes: number;
+  first: string;
+  last: string;
+  max_gap_days: number | null;
+}
+
+export interface OperationUsed {
+  type: 'harvest' | 'fertilization' | 'tillage' | 'baling' | 'irrigation';
+  date: string;
+  exported_c_tC_ha?: number | null;
+  n_kg_ha?: number | null;
+  organic?: boolean;
+  tillage_type?: string;
+  water_m3_ha?: number | null;
+}
+
+/** What entered the balance and where it came from. */
+export interface InputsSummary {
+  weather_days_by_source: Record<string, number>;
+  vi: Partial<Record<'NDVI' | 'OSAVI', ViSummary>>;
+  soil: { source: string; soc_tC_ha: number; clay_pct: number; depth_cm: number } | null;
+  operations: OperationUsed[];
+  irrigated: { value: boolean; source: 'operations' | 'declared' | null } | null;
 }
 
 export interface CampaignList {
@@ -99,30 +126,19 @@ export interface ProjectionData {
   missing: MissingItem[];
 }
 
-/** Farmer-declared management. Absent = not declared; nothing is defaulted. */
+/** Farmer-declared management: only what the platform does not record elsewhere.
+ * Absent = not declared; nothing is defaulted. */
 export interface ManagementData {
-  tillage_type?: string | null;
-  residues_removed?: boolean | null;
+  harvest_export_fraction?: number | null;
   residue_removal_fraction?: number | null;
-  cover_crop_months?: number | null;
   organic_amendments_tC_ha_yr?: number | null;
   n_synthetic_kgN_ha_yr?: number | null;
   n_organic_kgN_ha_yr?: number | null;
   irrigated?: boolean | null;
   soil_lab_soc_tC_ha?: number | null;
   soil_lab_clay_pct?: number | null;
-  harvest_export_fraction?: number | null;
-  weather_source?: string | null;
-  weather_sensor_id?: string | null;
 }
 
-export interface SensorInfo {
-  id: string;
-  name: string;
-  sensor_type: string;
-  latitude: number | null;
-  longitude: number | null;
-}
 
 export interface MRVCampaign {
   year: number;
@@ -240,14 +256,6 @@ export function downloadMRVReport(entityId: string, report: MRVReport): void {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-// ---------------------------------------------------------------------------
-// Sensor listing
-// ---------------------------------------------------------------------------
-
-export async function fetchAvailableSensors(entityId: string): Promise<SensorInfo[]> {
-  return apiFetch<SensorInfo[]>(`/sensors/available?entity_id=${encodeURIComponent(entityId)}`);
 }
 
 // ---------------------------------------------------------------------------

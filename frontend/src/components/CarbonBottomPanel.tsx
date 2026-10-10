@@ -9,6 +9,7 @@ import CarbonMissingList from './CarbonMissingList';
 import CarbonProjectionChart from './CarbonProjectionChart';
 import CarbonManagementForm from './CarbonManagementForm';
 import CarbonMRVExport from './CarbonMRVExport';
+import CarbonDataTab from './CarbonDataTab';
 import { colors } from './styles';
 import { DASH, currentYear, fmt, fmtSigned, productionUnit } from './campaignFormat';
 
@@ -21,9 +22,9 @@ function useEntityId(props: CarbonBottomPanelProps): string {
   return props.entityId || params.entityId || '';
 }
 
-type TabKey = 'overview' | 'soil' | 'projection' | 'management' | 'export';
+type TabKey = 'overview' | 'data' | 'soil' | 'projection' | 'management' | 'export';
 
-const TAB_KEYS: TabKey[] = ['overview', 'soil', 'projection', 'management', 'export'];
+const TAB_KEYS: TabKey[] = ['overview', 'data', 'soil', 'projection', 'management', 'export'];
 
 const POOL_KEYS: Array<{ key: keyof CarbonPools; labelKey: string; color: string }> = [
   { key: 'DPM', labelKey: 'pool_dpm', color: '#F59E0B' },
@@ -127,7 +128,7 @@ const CarbonBottomPanel: React.FC<CarbonBottomPanelProps> = (props) => {
               flexShrink: 0,
             }}
           >
-            {t(key === 'soil' ? 'pools' : key === 'export' ? 'export_report' : key)}
+            {t(key === 'soil' ? 'pools' : key === 'export' ? 'export_report' : key === 'data' ? 'data.tab' : key)}
           </button>
         ))}
       </div>
@@ -148,6 +149,8 @@ const CarbonBottomPanel: React.FC<CarbonBottomPanelProps> = (props) => {
             t={t}
           />
         )}
+
+        {activeTab === 'data' && <CarbonDataTab row={row} />}
 
         {activeTab === 'soil' && <SoilTab row={row} t={t} />}
 

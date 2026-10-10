@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 import { Select } from '@nekazari/ui-kit';
-import { saveManagement, fetchAvailableSensors, fetchManagement } from '../api/carbonApi';
-import type { ManagementData, SensorInfo } from '../api/carbonApi';
+import { saveManagement, fetchManagement } from '../api/carbonApi';
+import type { ManagementData } from '../api/carbonApi';
 import { colors } from './styles';
 
 interface CarbonManagementFormProps {
@@ -13,26 +13,19 @@ interface CarbonManagementFormProps {
 /** Raw form values: '' means "not declared" and is never sent. */
 type Draft = Record<string, string>;
 
-const NUMBER_FIELDS: Array<{ key: keyof ManagementData; labelKey: string; scale?: number; min: number; max?: number; step: number }> = [
-  { key: 'harvest_export_fraction', labelKey: 'harvest_export_pct', scale: 100, min: 0, max: 100, step: 1 },
-  { key: 'residue_removal_fraction', labelKey: 'residue_removal_pct', scale: 100, min: 0, max: 100, step: 1 },
+/**
+ * Only what the platform does not record elsewhere. Tillage and cover crops come
+ * from field operations and crop cycles; weather from the parcel daily series.
+ * N rates and irrigation are used only when no operation of that kind is recorded.
+ */
+const NUMBER_FIELDS: Array<{ key: keyof ManagementData; labelKey: string; hintKey?: string; scale?: number; min: number; max?: number; step: number }> = [
+  { key: 'harvest_export_fraction', labelKey: 'harvest_export_pct', hintKey: 'hint_export', scale: 100, min: 0, max: 100, step: 1 },
+  { key: 'residue_removal_fraction', labelKey: 'residue_removal_pct', hintKey: 'hint_removal', scale: 100, min: 0, max: 100, step: 1 },
   { key: 'organic_amendments_tC_ha_yr', labelKey: 'organic_amendments', min: 0, step: 0.1 },
-  { key: 'n_synthetic_kgN_ha_yr', labelKey: 'n_synthetic', min: 0, step: 1 },
-  { key: 'n_organic_kgN_ha_yr', labelKey: 'n_organic', min: 0, step: 1 },
+  { key: 'n_synthetic_kgN_ha_yr', labelKey: 'n_synthetic', hintKey: 'hint_n', min: 0, step: 1 },
+  { key: 'n_organic_kgN_ha_yr', labelKey: 'n_organic', hintKey: 'hint_n', min: 0, step: 1 },
   { key: 'soil_lab_soc_tC_ha', labelKey: 'soil_lab_soc', min: 0, step: 0.1 },
   { key: 'soil_lab_clay_pct', labelKey: 'soil_lab_clay', min: 0, max: 100, step: 0.1 },
-  { key: 'cover_crop_months', labelKey: 'cover_crop_months', min: 0, max: 12, step: 1 },
-];
-
-const TILLAGE_OPTIONS = [
-  { value: 'conventional', labelKey: 'tillage_conventional' },
-  { value: 'reduced', labelKey: 'tillage_reduced' },
-  { value: 'no_till', labelKey: 'tillage_no_till' },
-];
-
-const WEATHER_SOURCE_OPTIONS = [
-  { value: 'weather_worker', labelKey: 'weather_worker' },
-  { value: 'sensor', labelKey: 'weather_sensor' },
 ];
 
 function toDraft(data: ManagementData): Draft {
@@ -41,11 +34,7 @@ function toDraft(data: ManagementData): Draft {
     const v = data[f.key] as number | null | undefined;
     d[f.key] = v === null || v === undefined ? '' : String(f.scale ? Math.round(v * f.scale * 100) / 100 : v);
   }
-  d.tillage_type = data.tillage_type ?? '';
   d.irrigated = data.irrigated === undefined || data.irrigated === null ? '' : data.irrigated ? 'yes' : 'no';
-  d.residues_removed = data.residues_removed === undefined || data.residues_removed === null ? '' : data.residues_removed ? 'yes' : 'no';
-  d.weather_source = data.weather_source ?? '';
-  d.weather_sensor_id = data.weather_sensor_id ?? '';
   return d;
 }
 
@@ -58,18 +47,13 @@ function fromDraft(d: Draft): ManagementData {
     if (Number.isNaN(n)) continue;
     (out as Record<string, number>)[f.key] = f.scale ? n / f.scale : n;
   }
-  if (d.tillage_type) out.tillage_type = d.tillage_type;
   if (d.irrigated) out.irrigated = d.irrigated === 'yes';
-  if (d.residues_removed) out.residues_removed = d.residues_removed === 'yes';
-  if (d.weather_source) out.weather_source = d.weather_source;
-  if (d.weather_source === 'sensor' && d.weather_sensor_id) out.weather_sensor_id = d.weather_sensor_id;
   return out;
 }
 
 const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({ entityId, onSaved }) => {
   const { t } = useTranslation('carbon');
   const [draft, setDraft] = useState<Draft>(() => toDraft({}));
-  const [sensors, setSensors] = useState<SensorInfo[]>([]);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -78,12 +62,6 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({ entityId, o
     if (!entityId) return;
     fetchManagement(entityId).then((m) => setDraft(toDraft(m))).catch(() => setDraft(toDraft({})));
   }, [entityId]);
-
-  useEffect(() => {
-    if (draft.weather_source === 'sensor' && entityId) {
-      fetchAvailableSensors(entityId).then(setSensors).catch(() => setSensors([]));
-    }
-  }, [draft.weather_source, entityId]);
 
   const set = (key: string, value: string) => setDraft((d) => ({ ...d, [key]: value }));
 
@@ -112,12 +90,8 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({ entityId, o
     boxSizing: 'border-box',
   };
   const labelStyle: React.CSSProperties = { fontSize: '12px', fontWeight: 500, color: colors.textSecondary, marginBottom: '4px' };
+  const hintStyle: React.CSSProperties = { fontSize: '11px', color: colors.textMuted };
   const rowStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '4px' };
-  const triState = [
-    { value: '', label: t('not_declared') },
-    { value: 'yes', label: t('yes') },
-    { value: 'no', label: t('no') },
-  ];
 
   return (
     <form
@@ -143,54 +117,27 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({ entityId, o
               onChange={(e) => set(f.key, e.target.value)}
               style={inputStyle}
             />
+            {f.hintKey && <span style={hintStyle}>{t(f.hintKey)}</span>}
           </div>
         ))}
 
         <div style={rowStyle}>
           <label style={labelStyle}>{t('irrigated')}</label>
-          <Select value={draft.irrigated} onValueChange={(v: string) => set('irrigated', v)} options={triState} size="sm" />
-        </div>
-
-        <div style={rowStyle}>
-          <label style={labelStyle}>{t('residues_removed')}</label>
-          <Select value={draft.residues_removed} onValueChange={(v: string) => set('residues_removed', v)} options={triState} size="sm" />
-        </div>
-
-        <div style={rowStyle}>
-          <label style={labelStyle}>{t('tillage')}</label>
           <Select
-            value={draft.tillage_type}
-            onValueChange={(v: string) => set('tillage_type', v)}
-            options={[{ value: '', label: t('not_declared') }, ...TILLAGE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))]}
+            value={draft.irrigated}
+            onValueChange={(v: string) => set('irrigated', v)}
+            options={[
+              { value: '', label: t('not_declared') },
+              { value: 'yes', label: t('yes') },
+              { value: 'no', label: t('no') },
+            ]}
             size="sm"
           />
+          <span style={hintStyle}>{t('hint_irrigation')}</span>
         </div>
-
-        <div style={rowStyle}>
-          <label style={labelStyle}>{t('weather_source')}</label>
-          <Select
-            value={draft.weather_source}
-            onValueChange={(v: string) => set('weather_source', v)}
-            options={[{ value: '', label: t('not_declared') }, ...WEATHER_SOURCE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))]}
-            size="sm"
-          />
-        </div>
-
-        {draft.weather_source === 'sensor' && (
-          <div style={rowStyle}>
-            <label style={labelStyle}>{t('select_sensor')}</label>
-            <Select
-              value={draft.weather_sensor_id}
-              onValueChange={(v: string) => set('weather_sensor_id', v)}
-              options={[
-                { value: '', label: t('select_sensor') },
-                ...sensors.map((s) => ({ value: s.id, label: `${s.name}${s.sensor_type ? ` (${s.sensor_type})` : ''}` })),
-              ]}
-              size="sm"
-            />
-          </div>
-        )}
       </div>
+
+      <div style={{ fontSize: '11px', color: colors.textMuted }}>{t('recorded_elsewhere')}</div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button
