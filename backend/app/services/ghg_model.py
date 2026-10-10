@@ -38,6 +38,9 @@ class N2OInputs:
     precip_annual_mm: float = 500.0
     etp_annual_mm: float = 800.0
     irrigated: bool = False
+    # IPCC 2019 (Vol. 4, Ch. 11): temperate/boreal "wet" climate = precipitation/PET > 1.
+    # When given, it overrides the legacy 1000 mm rule.
+    wet_climate: bool | None = None
 
 
 @dataclass
@@ -61,7 +64,10 @@ def _ef1(fertilizer_type: str, regime: str) -> float:
 
 def compute_n2o(inputs: N2OInputs) -> N2OResult:
     """N2O emissions -- IPCC 2019 Refinement full formula (spec 5.2)."""
-    regime = _regime(inputs.irrigated, inputs.precip_annual_mm)
+    if inputs.wet_climate is not None:
+        regime = "humedo" if (inputs.irrigated or inputs.wet_climate) else "seco"
+    else:
+        regime = _regime(inputs.irrigated, inputs.precip_annual_mm)
 
     ef1_syn = _ef1("sintetico", regime)
     ef1_org = _ef1("organico", regime)

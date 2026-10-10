@@ -1,3 +1,4 @@
+import pytest
 from app.services.ghg_model import (
     N2OInputs,
     compute_n2o,
@@ -131,3 +132,13 @@ class TestCO2eqNet:
             n2o_tCO2eq_ha_yr=2.0,
         )
         assert net > 0
+
+
+def test_wet_climate_flag_overrides_precip_threshold():
+    from app.services.ghg_model import N2OInputs, compute_n2o
+    dry = compute_n2o(N2OInputs(n_applied_synthetic_kgN_ha_yr=100, precip_annual_mm=600,
+                                etp_annual_mm=500, wet_climate=False))
+    wet = compute_n2o(N2OInputs(n_applied_synthetic_kgN_ha_yr=100, precip_annual_mm=600,
+                                etp_annual_mm=500, wet_climate=True))
+    assert wet.n2o_direct_kgN2O_ha_yr == pytest.approx(100 * 0.016 * 44 / 28)
+    assert dry.n2o_direct_kgN2O_ha_yr == pytest.approx(100 * 0.005 * 44 / 28)
