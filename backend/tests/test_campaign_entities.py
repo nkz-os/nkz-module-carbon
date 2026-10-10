@@ -48,3 +48,13 @@ def test_assessment_entity_shape():
     from app.services.campaign_types import SoilInit
     e2 = build_campaign_assessment("t1", "abc", b, [], soil=SoilInit(40.0, 21.0, 30.0, "soilgrids"))
     assert e2["soilClayPct"]["value"] == 21.0 and e2["soilDepthCm"]["value"] == 30.0
+
+
+def test_inputs_summary_stored_and_lists_restored():
+    from app.services import campaign_runner as cr
+    b = compute_campaign_balance(_inp())
+    e = build_campaign_assessment("t1", "abc", b, [])
+    assert e["inputsSummary"]["value"]["soil"]["source"] == "soilgrids"
+    e["inputsSummary"]["value"]["operations"] = e["inputsSummary"]["value"]["operations"][0]  # Orion unwrap
+    row = cr.entity_to_dict(e)
+    assert isinstance(row["inputs_summary"]["operations"], list)

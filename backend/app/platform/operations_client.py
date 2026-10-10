@@ -9,7 +9,7 @@ from typing import Any, Optional
 from app.common.orion import get_orion_client
 from app.platform.errors import SourceUnavailable
 from app.services.campaign_types import (
-    BalingEvent, FertilizationEvent, HarvestEvent, Missing, TillageEvent,
+    BalingEvent, FertilizationEvent, HarvestEvent, IrrigationEvent, Missing, OperationsRead, TillageEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,7 +94,7 @@ async def fetch_operations(
     start: date,
     end: date,
     area_ha: Optional[float],
-) -> tuple[list[HarvestEvent], list[FertilizationEvent], list[TillageEvent], list[BalingEvent], list[Missing]]:
+) -> OperationsRead:
     orion = get_orion_client()
     entities: list[dict] = []
     offset = 0
@@ -115,7 +115,7 @@ async def fetch_operations(
         logger.warning("operations query failed tenant=%s parcel=%s: %s", tenant_id, parcel_urn, exc)
         raise SourceUnavailable(f"operations query failed: {exc}") from exc
 
-    harvests, ferts, tills, bales = [], [], [], []
+    harvests, ferts, tills, bales, irrigs = [], [], [], [], []
     missing: list[Missing] = []
     for e in entities:
         if _value(e.get("status")) != "completed":
@@ -142,5 +142,11 @@ async def fetch_operations(
             tills.append(TillageEvent(day, str(_value(e.get("tillageType")) or "")))
         elif kind == "baling":
             bales.append(BalingEvent(day))
+        elif kind == "irrigation":
+            irrigs.append(IrrigationEvent(day, _num(e.get("waterPerHectare"))))
     key = lambda x: x.day  # noqa: E731
-    return sorted(harvests, key=key), sorted(ferts, key=key), sorted(tills, key=key), sorted(bales, key=key), missing
+    return OperationsRead(
+        harvests=tuple(sorted(harvests, key=key)), fertilizations=tuple(sorted(ferts, key=key)),
+        tillages=tuple(sorted(tills, key=key)), balings=tuple(sorted(bales, key=key)),
+        irrigations=tuple(sorted(irrigs, key=key)), missing=tuple(missing),
+    )

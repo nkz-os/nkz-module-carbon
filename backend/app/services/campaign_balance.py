@@ -93,6 +93,7 @@ def _empty(inp: CampaignInputs, missing: list[Missing], assumptions: list[str]) 
         co2eq_net_tCO2eq_ha=None, gpp_ci95_pct=None, delta_soc_ci95_tC_ha=None, end_state=None,
         initial_state_source=inp.initial_state_source, cycles=(), months=(),
         missing=tuple(missing), assumptions=tuple(assumptions),
+        inputs_summary=_inputs_summary(inp, [], None, [], None, None),
     )
 
 
@@ -131,6 +132,7 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
     all_days = _days(first_day, through)
     period_days = _days(p_start, through)
     vi = interpolate_daily(inp.ndvi, all_days, MAX_VI_GAP_DAYS)
+    vi_by_index = {"NDVI": vi, "OSAVI": interpolate_daily(inp.osavi, all_days, MAX_VI_GAP_DAYS)}
 
     # one producing cycle per day: the latest started among those covering it
     def covering(d: date) -> Optional[CycleSpan]:
@@ -158,7 +160,8 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
             acc.in_period += 1
             cycle_days_period += 1
             cover_by_month[d.month] += 1
-        w, v = by_day.get(d), vi.get(d)
+        w = by_day.get(d)
+        v = vi_by_index.get(c.params.vi_type, {}).get(d) if c.params is not None else None
         if c.params is None or v is None or w is None or w.radiation_mj_m2 is None:
             continue
         fapar = max(0.0, min(FAPAR_MAX, c.params.fapar_a * v + c.params.fapar_b))
@@ -187,7 +190,7 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
         no_params = sum(a.in_period for a in accs.values() if a.span.params is None)
         no_data = cycle_days_period - computed_days_period - no_params
         if no_data:
-            missing.append(Missing("ndvi", f"{no_data} cycle days without NDVI within {MAX_VI_GAP_DAYS} days",
+            missing.append(Missing("ndvi", f"{no_data} cycle days without a vegetation index within {MAX_VI_GAP_DAYS} days",
                                    "tier1_partial"))
 
     # -- cycle closures ------------------------------------------------------
@@ -275,13 +278,21 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
 
     # -- Tier 3: N2O and NEE ---------------------------------------------------
     nee = necb = n2o = net = None
+    # Irrigation: recorded operations first, the declaration only without records.
+    period_irrigations = [i for i in inp.irrigations if p_start <= i.day <= through]
+    if inp.declared.irrigated is not None and not period_irrigations:
+        irrigated_value, irrigated_source = inp.declared.irrigated, "declared"
+    elif period_irrigations:
+        irrigated_value, irrigated_source = True, "operations"
+    else:
+        irrigated_value, irrigated_source = False, None
     if rh is not None and npp_t is not None:
         n_syn, n_org, n_gaps = _nitrogen(inp, through)
         missing.extend(n_gaps)
         if not n_gaps and not any(m.effect == "tier3_unavailable" for m in missing):
             rain = sum(m.rain_mm for m in months)
             et0 = sum(m.et0_mm for m in months)
-            irrigated = bool(inp.declared.irrigated)
+            irrigated = bool(irrigated_value)
             res = compute_n2o(N2OInputs(
                 n_applied_synthetic_kgN_ha_yr=n_syn, n_applied_organic_kgN_ha_yr=n_org,
                 precip_annual_mm=rain, etp_annual_mm=et0, irrigated=irrigated, wet_climate=rain > et0,
@@ -297,6 +308,7 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
             net = -necb * C_TO_CO2 + n2o
 
     tier = 3 if net is not None else 2 if delta is not None else 1 if tier1_ok else 0
+    summary = _inputs_summary(inp, period_days, through, cycle_results, irrigated_value, irrigated_source)
     return CampaignBalance(
         year=year, period_start=p_start, period_end=p_end, computed_through=through, tier=tier,
         cover_days=cover_days, bare_days=len(period_days) - cover_days,
@@ -308,7 +320,7 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
         delta_soc_ci95_tC_ha=ci_soc, end_state=end_state,
         initial_state_source=inp.initial_state_source if inp.initial_state is not None else "soil",
         cycles=tuple(cycle_results), months=tuple(months), missing=tuple(missing),
-        assumptions=tuple(assumptions),
+        assumptions=tuple(assumptions), inputs_summary=summary,
     )
 
 
@@ -425,3 +437,53 @@ def _delta_soc_ci(start: RothCState, months: list[RothCMonth], clay: float, dept
         deltas.append(run_months(start, scaled, clay, depth).final.pools.total - start.pools.total)
     lo, hi = np.percentile(deltas, [2.5, 97.5])
     return float((hi - lo) / 2.0)
+
+
+def _vi_summary(series, first: date, last: date) -> Optional[dict]:
+    dates = sorted({d for d, _ in series if first - timedelta(days=MAX_VI_GAP_DAYS) <= d <= last + timedelta(days=MAX_VI_GAP_DAYS)})
+    if not dates:
+        return None
+    gaps = [(b - a).days for a, b in zip(dates, dates[1:])]
+    return {"scenes": len(dates), "first": dates[0].isoformat(), "last": dates[-1].isoformat(),
+            "max_gap_days": max(gaps) if gaps else None}
+
+
+def _inputs_summary(inp: CampaignInputs, period_days: list, through: Optional[date], cycle_results,
+                    irrigated_value, irrigated_source) -> dict:
+    """What entered the balance and where it came from (shown to the user as-is)."""
+    by_source: dict[str, int] = defaultdict(int)
+    weather = {w.day: w for w in inp.weather}
+    for d in period_days:
+        w = weather.get(d)
+        if w is not None:
+            by_source[w.source or "unknown"] += 1
+    first = date(inp.year, 1, 1)
+    last = through or first
+    vi = {}
+    for name, series in (("NDVI", inp.ndvi), ("OSAVI", inp.osavi)):
+        summary = _vi_summary(series, first, last)
+        if summary:
+            vi[name] = summary
+    ops = []
+    for h in inp.harvests:
+        ops.append({"type": "harvest", "date": h.day.isoformat(), "exported_c_tC_ha": h.exported_c_tC_ha})
+    for f in inp.fertilizations:
+        ops.append({"type": "fertilization", "date": f.day.isoformat(), "n_kg_ha": f.n_kg_ha, "organic": f.organic})
+    for t in inp.tillages:
+        ops.append({"type": "tillage", "date": t.day.isoformat(), "tillage_type": t.tillage_type})
+    for b in inp.balings:
+        ops.append({"type": "baling", "date": b.day.isoformat()})
+    for i in inp.irrigations:
+        ops.append({"type": "irrigation", "date": i.day.isoformat(), "water_m3_ha": i.water_m3_ha})
+    ops.sort(key=lambda o: (o["date"], o["type"]))
+    soil = None
+    if inp.soil is not None:
+        soil = {"source": inp.soil.source, "soc_tC_ha": inp.soil.soc_tC_ha, "clay_pct": inp.soil.clay_pct,
+                "depth_cm": inp.soil.depth_cm}
+    return {
+        "weather_days_by_source": dict(by_source),
+        "vi": vi,
+        "soil": soil,
+        "operations": ops,
+        "irrigated": {"value": irrigated_value, "source": irrigated_source} if irrigated_value is not None else None,
+    }

@@ -31,8 +31,8 @@ FAPAR_PARAMS: dict[str, tuple[float, float, str]] = {
     "almond": (1.40, -0.240, "OSAVI"), "citrus": (1.40, -0.240, "OSAVI"),
 }
 
-# Indices the platform publishes per acquisition (EOProduct). OSAVI is not among them.
-AVAILABLE_VI = {"NDVI"}
+# Indices the platform publishes per acquisition (EOProduct).
+AVAILABLE_VI = {"NDVI", "OSAVI"}
 
 
 async def resolve_crop_params(

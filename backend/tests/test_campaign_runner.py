@@ -11,7 +11,7 @@ from test_campaign_balance import P, SOIL, _ndvi, _weather  # noqa: E402
 from app.ngsild.campaign_entities import build_campaign_stock  # noqa: E402
 from app.platform.errors import SourceUnavailable  # noqa: E402
 from app.services import campaign_runner as cr  # noqa: E402
-from app.services.campaign_types import HarvestEvent  # noqa: E402
+from app.services.campaign_types import HarvestEvent, OperationsRead  # noqa: E402
 from app.services.roth_c_model import RothCPools, RothCState  # noqa: E402
 
 TODAY = date(2026, 10, 10)
@@ -60,13 +60,13 @@ def env(monkeypatch):
         return list(_weather(start, min(end, TODAY - timedelta(days=1))))
 
     async def ndvi(urn, tenant, start, end):
-        return list(_ndvi(date(2025, 1, 1), date(2026, 12, 31)))
+        return {"NDVI": list(_ndvi(date(2025, 1, 1), date(2026, 12, 31))), "OSAVI": []}
 
     async def soil(urn, tenant, lab=(None, None)):
         return SOIL, []
 
     async def ops(urn, tenant, start, end, area):
-        return [HarvestEvent(date(2026, 7, 1), 1.2, "operation")], [], [], [], []
+        return OperationsRead((HarvestEvent(date(2026, 7, 1), 1.2, "operation"),), (), (), (), (), ())
 
     async def area(urn, tenant):
         return 10.0
@@ -77,7 +77,7 @@ def env(monkeypatch):
     async def params(species, lat, lon):
         return P, []
 
-    for name, fn in [("fetch_cycles", cycles), ("fetch_daily_weather", weather), ("fetch_ndvi_series", ndvi),
+    for name, fn in [("fetch_cycles", cycles), ("fetch_daily_weather", weather), ("fetch_vi_series", ndvi),
                      ("fetch_soil_init", soil), ("fetch_operations", ops), ("fetch_parcel_area_ha", area),
                      ("fetch_parcel_coordinates", coords), ("resolve_crop_params", params)]:
         monkeypatch.setattr(cr, name, fn)
@@ -288,7 +288,7 @@ async def test_form_saved_for_irrigation_only_declares_nothing_else(env, monkeyp
     assert b.tier == 2 and "fertilizer_n" in {m.item for m in b.missing}   # no invented zero N
 
     async def ops(urn, tenant, start, end, area):
-        return [], [], [], [], []   # no harvest record
+        return OperationsRead((), (), (), (), (), ())   # no harvest record
     monkeypatch.setattr(cr, "fetch_operations", ops)
     b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
     assert "harvest_export" in {m.item for m in b.missing}   # no invented 90 % export

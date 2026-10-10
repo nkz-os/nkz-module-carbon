@@ -57,6 +57,7 @@ def build_campaign_assessment(tenant_id: str, parcel_id: str, b: CampaignBalance
         "monthlyBalance": _p([_month(m) for m in b.months]),
         "missing": _p([m.to_dict() for m in b.missing]),
         "assumptions": _p(list(b.assumptions)),
+        "inputsSummary": _p(b.inputs_summary or {}),
         "initialStateSource": _p(b.initial_state_source),
         "dataSources": _p(sources),
         "gwpStandard": _p("AR6"),

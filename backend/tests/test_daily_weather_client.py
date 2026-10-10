@@ -29,6 +29,7 @@ async def test_parses_days_and_sends_tenant_headers():
     assert "/api/weather/parcel/p1/daily" in seen["url"] and "fill=open_meteo" in seen["url"]
     assert days[0].complete and days[0].radiation_mj_m2 == 10.5 and days[0].day == date(2026, 3, 1)
     assert not days[1].complete
+    assert days[0].source == "reanalysis" and days[1].source is None
 
 
 @pytest.mark.asyncio

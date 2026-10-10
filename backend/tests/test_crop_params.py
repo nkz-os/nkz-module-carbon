@@ -37,9 +37,20 @@ async def test_bioorch_partial_params_fall_back_to_table(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_woody_needs_osavi(monkeypatch):
+async def test_woody_uses_osavi(monkeypatch):
     monkeypatch.setattr(cp, "fetch_phenology_params", _none)
     params, missing = await cp.resolve_crop_params("OLVEU", 42.0, -1.6)
+    assert params.vi_type == "OSAVI" and params.fapar_a == 1.40 and missing == []
+
+
+@pytest.mark.asyncio
+async def test_unpublished_index_is_still_missing(monkeypatch):
+    from app.platform.bioorchestrator_client import PhenologyParams
+    async def bio(*a, **k):
+        return PhenologyParams(species="X", lue_gC_per_MJ=1.0, fapar_a=1.0, fapar_b=0.0,
+                               fapar_vi_type="MSAVI2", root_fraction=0.2)
+    monkeypatch.setattr(cp, "fetch_phenology_params", bio)
+    params, missing = await cp.resolve_crop_params("TRZAX", None, None)
     assert params is None and [m.item for m in missing] == ["vi_type"]
 
 

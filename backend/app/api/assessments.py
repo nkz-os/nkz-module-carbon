@@ -1,10 +1,9 @@
-"""Carbon projection, tenant summary and sensor listing.
+"""Carbon projection and tenant summary.
 
 Mount at /api/carbon (handled by main.py include_router).
 
 Endpoints:
   GET    /parcels/{entity_id}/projection           — SOC projection from stored campaigns
-  GET    /sensors/available                        — List tenant AgriSensors
   GET    /tenant/summary                           — Carbon by campaign across parcels
 
 The per-campaign balance lives in app/api/campaigns.py.
@@ -23,12 +22,10 @@ from app.models.schemas import (
     ErrorResponse,
     ParcelSummary,
     ProjectionResponse,
-    SensorInfo,
     TierSummaryResponse,
     YearlyAggregation,
 )
 from app.platform.errors import SourceUnavailable
-from app.platform.weather_client import list_tenant_sensors
 from app.services.campaign_runner import list_campaigns, projection
 
 logger = logging.getLogger(__name__)
@@ -55,33 +52,6 @@ async def get_projection(
         return await projection(auth.tenant_id, entity_id, years)
     except SourceUnavailable as exc:
         raise HTTPException(status_code=503, detail={"error": "source_unavailable", "detail": str(exc)})
-
-
-# ---------------------------------------------------------------------------
-# Sensor listing
-# ---------------------------------------------------------------------------
-
-
-@router.get(
-    "/sensors/available",
-    response_model=list[SensorInfo],
-)
-async def list_sensors(
-    auth: AuthContext = require_auth(),
-):
-    """List tenant's AgriSensor entities available as weather data sources."""
-    tenant_id = auth.tenant_id
-    sensors = await list_tenant_sensors(tenant_id)
-    return [
-        SensorInfo(
-            id=s["id"],
-            name=s["name"],
-            sensor_type=s.get("sensor_type", ""),
-            latitude=s.get("latitude"),
-            longitude=s.get("longitude"),
-        )
-        for s in sensors
-    ]
 
 
 # ---------------------------------------------------------------------------

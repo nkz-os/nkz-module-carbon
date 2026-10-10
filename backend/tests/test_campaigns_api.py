@@ -157,3 +157,18 @@ def test_management_save_stores_only_what_was_declared(monkeypatch):
     assert r.status_code == 201
     keys = set(saved) - {"id", "type", "@context", "hasAgriParcel", "lastUpdated", "source"}
     assert keys == {"irrigated"}
+
+
+def test_management_form_declares_only_what_the_platform_does_not_record():
+    from app.models.management import ManagementInput
+    assert set(ManagementInput.model_fields) == {
+        "harvest_export_fraction", "residue_removal_fraction", "organic_amendments_tC_ha_yr",
+        "n_synthetic_kgN_ha_yr", "n_organic_kgN_ha_yr", "irrigated", "soil_lab_soc_tC_ha", "soil_lab_clay_pct",
+    }
+    # old clients sending removed fields are not rejected
+    assert ManagementInput(weather_source="sensor", tillage_type="no_till").model_dump(exclude_none=True) == {}
+
+
+def test_sensor_listing_route_is_gone():
+    from app.api import assessments
+    assert not any(r.path.endswith("/sensors/available") for r in assessments.router.routes)

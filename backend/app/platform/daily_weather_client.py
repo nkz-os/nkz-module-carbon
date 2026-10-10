@@ -65,5 +65,6 @@ async def fetch_daily_weather(
             precip_mm=_num(d.get("precip_mm")),
             et0_mm=_num(d.get("et0_mm")),
             radiation_mj_m2=_num(d.get("radiation_mj_m2")),
+            source=d.get("source"),
         ))
     return days

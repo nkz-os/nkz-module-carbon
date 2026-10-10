@@ -1,8 +1,8 @@
-"""NDVI series of a parcel from the broker's EOProduct entities.
+"""Vegetation index series of a parcel from the broker's EOProduct entities.
 
-One EOProduct per optical acquisition carries an ``ndvi`` property and its
-``sensingDate`` (the same source crop-health reads). SAR products share the type
-without ``ndvi`` and are skipped.
+One EOProduct per optical acquisition carries one property per index (``ndvi``,
+``osavi``, ...) and its ``sensingDate`` (the same source crop-health reads). SAR
+products share the type without optical indices and are skipped.
 """
 
 import logging
@@ -25,12 +25,17 @@ def _value(attr: Any) -> Any:
     return attr
 
 
-async def fetch_ndvi_series(
+# Indices read per acquisition: EOProduct attribute -> index name.
+_INDEX_ATTRS = {"ndvi": "NDVI", "osavi": "OSAVI"}
+
+
+async def fetch_vi_series(
     parcel_urn: str,
     tenant_id: str,
     start: date,
     end: date,
-) -> list[tuple[date, float]]:
+) -> dict[str, list[tuple[date, float]]]:
+    """NDVI and OSAVI series of the parcel (one broker pass), keyed by index name."""
     lo, hi = start - timedelta(days=_EDGE_DAYS), end + timedelta(days=_EDGE_DAYS)
     orion = get_orion_client()
     entities: list[dict] = []
@@ -52,16 +57,25 @@ async def fetch_ndvi_series(
         logger.warning("EOProduct query failed tenant=%s parcel=%s: %s", tenant_id, parcel_urn, exc)
         raise SourceUnavailable(f"EOProduct query failed: {exc}") from exc
 
-    out: list[tuple[date, float]] = []
+    out: dict[str, list[tuple[date, float]]] = {name: [] for name in _INDEX_ATTRS.values()}
     for e in entities:
-        raw, sensed = _value(e.get("ndvi")), _value(e.get("sensingDate"))
-        if raw is None or sensed is None:
-            continue
+        sensed = _value(e.get("sensingDate"))
         try:
-            v, d = float(raw), date.fromisoformat(str(sensed)[:10])
-        except (TypeError, ValueError):
+            d = date.fromisoformat(str(sensed)[:10]) if sensed is not None else None
+        except ValueError:
+            d = None
+        if d is None or not lo <= d <= hi:
             continue
-        if -1.0 <= v <= 1.0 and lo <= d <= hi:
-            out.append((d, v))
-    out.sort()
+        for attr, name in _INDEX_ATTRS.items():
+            raw = _value(e.get(attr))
+            if raw is None:
+                continue
+            try:
+                v = float(raw)
+            except (TypeError, ValueError):
+                continue
+            if -1.0 <= v <= 1.0:
+                out[name].append((d, v))
+    for series in out.values():
+        series.sort()
     return out

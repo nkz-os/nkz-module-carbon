@@ -261,3 +261,34 @@ def test_catch_crop_without_harvest_returns_everything():
     b = compute_campaign_balance(_inp(cycles=(_cycle(date(2026, 1, 1), date(2026, 4, 30), role="catch_crop"),),
                                       harvests=()))
     assert b.tier == 2 and b.cycles[0].exported_c_tC_ha == 0.0
+
+
+def test_woody_cycle_uses_its_osavi_series():
+    olive = CropParams(lue_gC_MJ=0.9, fapar_a=1.40, fapar_b=-0.24, vi_type="OSAVI", root_fraction=0.20, source="table")
+    cyc = CycleSpan("o1", "OLVEU", "main_crop", "perennial", date(2026, 1, 1), None, "declared", None, None, olive)
+    b = compute_campaign_balance(_inp(cycles=(cyc,), harvests=(), ndvi=(),
+                                      osavi=_ndvi(date(2026, 1, 1), date(2026, 12, 31), 0.5)))
+    assert b.tier1_coverage == 1.0 and b.gpp_tC_ha > 0
+    assert b.inputs_summary["vi"]["OSAVI"]["scenes"] > 0 and "NDVI" not in b.inputs_summary["vi"]
+
+
+def test_irrigation_comes_from_operations_unless_declared():
+    from app.services.campaign_types import IrrigationEvent
+    irr = (IrrigationEvent(date(2026, 6, 10), 300.0),)
+    b = compute_campaign_balance(_inp(irrigations=irr))
+    assert b.inputs_summary["irrigated"] == {"value": True, "source": "operations"}
+    decl = replace(NO_DECLARED_MANAGEMENT, irrigated=False)
+    b2 = compute_campaign_balance(_inp(irrigations=(), declared=decl))
+    assert b2.inputs_summary["irrigated"] == {"value": False, "source": "declared"}
+
+
+def test_inputs_summary_lists_sources_and_operations():
+    w = tuple(replace(d, source="reanalysis") for d in _weather(date(2026, 1, 1), date(2026, 10, 9)))
+    fert = (FertilizationEvent(date(2026, 3, 1), 54.0, False, "operation"),)
+    b = compute_campaign_balance(_inp(weather=w, fertilizations=fert, balings=(BalingEvent(date(2026, 7, 3)),)))
+    s = b.inputs_summary
+    assert s["weather_days_by_source"] == {"reanalysis": (date(2026, 9, 30) - date(2026, 1, 1)).days + 1}
+    assert s["soil"] == {"source": "soilgrids", "soc_tC_ha": 40.0, "clay_pct": 20.0, "depth_cm": 30.0}
+    kinds = [(o["type"], o["date"]) for o in s["operations"]]
+    assert ("fertilization", "2026-03-01") in kinds and ("harvest", "2026-07-01") in kinds and ("baling", "2026-07-03") in kinds
+    assert s["vi"]["NDVI"]["max_gap_days"] == 10

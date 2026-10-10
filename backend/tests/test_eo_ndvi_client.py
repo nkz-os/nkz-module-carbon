@@ -32,7 +32,7 @@ async def test_pages_filters_sar_and_out_of_range(monkeypatch):
     page2 = [_e("2026-05-05", 1.8), _e("2026-05-07", 0.6), _e("2025-01-01", 0.3)]
     fake = FakeOrion([page1, page2])
     monkeypatch.setattr(eo, "get_orion_client", lambda: fake)
-    out = await eo.fetch_ndvi_series("urn:ngsi-ld:AgriParcel:p1", "t1", date(2026, 1, 1), date(2026, 12, 31))
+    out = (await eo.fetch_vi_series("urn:ngsi-ld:AgriParcel:p1", "t1", date(2026, 1, 1), date(2026, 12, 31)))["NDVI"]
     assert fake.calls == [0, 500]
     assert fake.queries[0] == ("EOProduct", 'hasAgriParcel=="urn:ngsi-ld:AgriParcel:p1"')
     assert (date(2026, 5, 7), 0.6) in out
@@ -45,7 +45,7 @@ async def test_pages_filters_sar_and_out_of_range(monkeypatch):
 async def test_window_includes_scenes_shortly_outside(monkeypatch):
     fake = FakeOrion([[_e("2025-12-10", 0.3), _e("2025-10-01", 0.3)]])
     monkeypatch.setattr(eo, "get_orion_client", lambda: fake)
-    out = await eo.fetch_ndvi_series("urn:ngsi-ld:AgriParcel:p1", "t1", date(2026, 1, 1), date(2026, 12, 31))
+    out = (await eo.fetch_vi_series("urn:ngsi-ld:AgriParcel:p1", "t1", date(2026, 1, 1), date(2026, 12, 31)))["NDVI"]
     assert out == [(date(2025, 12, 10), 0.3)]
 
 
@@ -53,4 +53,14 @@ async def test_window_includes_scenes_shortly_outside(monkeypatch):
 async def test_orion_failure_is_source_unavailable(monkeypatch):
     monkeypatch.setattr(eo, "get_orion_client", lambda: FakeOrion([], fail=True))
     with pytest.raises(SourceUnavailable):
-        await eo.fetch_ndvi_series("urn:ngsi-ld:AgriParcel:p1", "t1", date(2026, 1, 1), date(2026, 12, 31))
+        await eo.fetch_vi_series("urn:ngsi-ld:AgriParcel:p1", "t1", date(2026, 1, 1), date(2026, 12, 31))
+
+
+@pytest.mark.asyncio
+async def test_vi_series_returns_ndvi_and_osavi(monkeypatch):
+    e1 = _e("2026-05-01", 0.5); e1["osavi"] = {"type": "Property", "value": 0.42}
+    e2 = _e("2026-05-11", None); e2["osavi"] = {"type": "Property", "value": 0.44}
+    monkeypatch.setattr(eo, "get_orion_client", lambda: FakeOrion([[e1, e2]]))
+    out = await eo.fetch_vi_series("urn:ngsi-ld:AgriParcel:p1", "t1", date(2026, 1, 1), date(2026, 12, 31))
+    assert out["NDVI"] == [(date(2026, 5, 1), 0.5)]
+    assert out["OSAVI"] == [(date(2026, 5, 1), 0.42), (date(2026, 5, 11), 0.44)]

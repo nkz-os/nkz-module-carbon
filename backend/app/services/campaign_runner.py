@@ -15,13 +15,14 @@ from app.ngsild.campaign_entities import build_campaign_assessment, build_campai
 from app.platform.crop_client import canonical_parcel_urn, fetch_parcel_coordinates, parcel_short
 from app.platform.crop_cycles_client import fetch_cycles
 from app.platform.daily_weather_client import fetch_daily_weather
-from app.platform.eo_ndvi_client import fetch_ndvi_series
+from app.platform.eo_ndvi_client import fetch_vi_series
 from app.platform.errors import SourceUnavailable
 from app.platform.operations_client import fetch_operations, fetch_parcel_area_ha
 from app.platform.soil_client import fetch_soil_init
 from app.services.campaign_balance import ENGINE_VERSION, compute_campaign_balance
 from app.services.campaign_types import (
     NO_DECLARED_MANAGEMENT, CampaignBalance, CampaignInputs, CycleSpan, DeclaredManagement, Missing,
+    OperationsRead,
 )
 from app.services.campaign_reports import (
     build_monitoring_report, combine_months, is_complete, months_from_row, project_soc,
@@ -68,9 +69,15 @@ def entity_to_dict(entity: dict) -> dict:
             continue
         out[_snake(k)] = _v(entity, k)
     for k in _LIST_ATTRS:
-        v = out.get(k)
-        out[k] = [] if v is None else v if isinstance(v, list) else [v]
+        out[k] = _as_list(out.get(k))
+    summary = out.get("inputs_summary")
+    if isinstance(summary, dict):
+        summary["operations"] = _as_list(summary.get("operations"))
     return out
+
+
+def _as_list(v: Any) -> list:
+    return [] if v is None else v if isinstance(v, list) else [v]
 
 
 async def _get(tenant_id: str, entity_id: str) -> Optional[dict]:
@@ -178,19 +185,19 @@ async def run_campaign(
     w_start = max(lookback, min([p_start] + [s["_start"] for s in spans]))
 
     if through_max >= w_start:
-        weather, ndvi, (soil, soil_missing), ops = await asyncio.gather(
+        weather, vi_series, (soil, soil_missing), ops = await asyncio.gather(
             _weather(urn, tenant_id, w_start, through_max),
-            fetch_ndvi_series(urn, tenant_id, w_start, through_max),
+            fetch_vi_series(urn, tenant_id, w_start, through_max),
             fetch_soil_init(urn, tenant_id, lab=lab),
             fetch_operations(urn, tenant_id, p_start, through_max, area),
         )
     else:  # 1 January: nothing closed yet
-        weather, ndvi, (soil, soil_missing), ops = [], [], (None, []), ([], [], [], [], [])
-    harvests, ferts, tills, bales, ops_missing = ops
+        weather, vi_series, (soil, soil_missing), ops = [], {}, (None, []), OperationsRead((), (), (), (), (), ())
+    ndvi, osavi = vi_series.get("NDVI", []), vi_series.get("OSAVI", [])
 
     lat, lon = coords if coords else (None, None)
     params_by_species: dict[str, tuple] = {}
-    missing: list[Missing] = list(soil_missing) + list(ops_missing)
+    missing: list[Missing] = list(soil_missing) + list(ops.missing)
     cycles: list[CycleSpan] = []
     for s in spans:
         species = str(s.get("species") or "")
@@ -217,9 +224,9 @@ async def run_campaign(
 
     balance = compute_campaign_balance(CampaignInputs(
         year=year, today=today, weather=tuple(weather), ndvi=tuple(ndvi), cycles=tuple(cycles), soil=soil,
-        initial_state=initial_state, initial_state_source=initial_source, harvests=tuple(harvests),
-        fertilizations=tuple(ferts), tillages=tuple(tills), balings=tuple(bales), declared=declared,
-        missing_in=tuple(missing),
+        initial_state=initial_state, initial_state_source=initial_source, harvests=ops.harvests,
+        fertilizations=ops.fertilizations, tillages=ops.tillages, balings=ops.balings, declared=declared,
+        missing_in=tuple(missing), osavi=tuple(osavi), irrigations=ops.irrigations,
     ))
 
     sources = ["weather_api_daily", "crop_cycles", "eo_ndvi", "field_operations"]
@@ -245,7 +252,7 @@ async def run_campaign(
                 tenant_id=tenant_id, entity_id=urn, tier=balance.tier,
                 methodology=f"campaign balance {year} (engine {ENGINE_VERSION})", data_sources=sources,
                 input_params={"year": year, "cycles": len(cycles), "weather_days": len(weather),
-                              "ndvi_scenes": len(ndvi), "initial_state": initial_source},
+                              "ndvi_scenes": len(ndvi), "osavi_scenes": len(osavi), "initial_state": initial_source},
                 results={"computed_through": balance.computed_through.isoformat() if balance.computed_through else None,
                          "delta_soc_tC_ha": balance.delta_soc_tC_ha, "co2eq_net_tCO2eq_ha": balance.co2eq_net_tCO2eq_ha,
                          "missing": sorted({m.item for m in balance.missing})},

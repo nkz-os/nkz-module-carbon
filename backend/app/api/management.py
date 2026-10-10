@@ -49,10 +49,8 @@ async def save_management(
     orion = get_orion_client()
     # Replace, not merge: a field the farmer cleared must stop being declared.
     await orion.replace_entity(entity, tenant_id)
-    logger.info(
-        "Management saved for tenant=%s parcel=%s tillage=%s",
-        tenant_id, entity_id, body.tillage_type,
-    )
+    logger.info("Management saved for tenant=%s parcel=%s fields=%s", tenant_id, entity_id,
+                sorted(body.model_dump(exclude_none=True)))
     return body
 
 

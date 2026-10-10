@@ -13,6 +13,7 @@ class WeatherDay:
     precip_mm: Optional[float]
     et0_mm: Optional[float]
     radiation_mj_m2: Optional[float]
+    source: Optional[str] = None  # parcel_weather | model_analysis | reanalysis
 
     @property
     def complete(self) -> bool:
@@ -70,6 +71,22 @@ class BalingEvent:
 
 
 @dataclass(frozen=True)
+class IrrigationEvent:
+    day: date
+    water_m3_ha: Optional[float]
+
+
+@dataclass(frozen=True)
+class OperationsRead:
+    harvests: tuple
+    fertilizations: tuple
+    tillages: tuple
+    balings: tuple
+    irrigations: tuple
+    missing: tuple
+
+
+@dataclass(frozen=True)
 class DeclaredManagement:
     """Values the farmer saved in the management form; all None when never saved."""
     harvest_export_fraction: Optional[float]
@@ -121,6 +138,8 @@ class CampaignInputs:
     balings: tuple[BalingEvent, ...]
     declared: DeclaredManagement
     missing_in: tuple[Missing, ...]            # gaps found while reading the sources
+    osavi: tuple[tuple[date, float], ...] = ()
+    irrigations: tuple[IrrigationEvent, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -182,3 +201,4 @@ class CampaignBalance:
     months: tuple[MonthResult, ...]
     missing: tuple[Missing, ...]
     assumptions: tuple[str, ...]
+    inputs_summary: dict = None  # what entered the balance and where it came from

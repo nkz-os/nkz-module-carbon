@@ -1,7 +1,8 @@
 """Management practices declared by the farmer.
 
-Every field is optional and None means "not declared". Nothing here is a
-default: the balance only uses what the farmer actually entered.
+Only what the platform does not record elsewhere: tillage and cover crops come
+from field operations and crop cycles, weather from the parcel daily series.
+Every field is optional and None means "not declared"; nothing is defaulted.
 """
 
 from typing import Optional
@@ -11,21 +12,10 @@ from pydantic import BaseModel, Field
 
 class ManagementInput(BaseModel):
     """Farmer-declared management practices (all optional)."""
-    weather_source: Optional[str] = Field(
-        default=None,
-        description='Legacy selector; campaign weather always comes from the parcel daily series',
-    )
-    weather_sensor_id: Optional[str] = Field(default=None, description="Legacy sensor id")
-    residues_removed: Optional[bool] = None
     residue_removal_fraction: Optional[float] = Field(
         default=None, ge=0.0, le=1.0,
         description="Share of the crop residue removed (e.g. baled straw)",
     )
-    tillage_type: Optional[str] = Field(
-        default=None,
-        description='One of: "conventional", "reduced", "no_till"',
-    )
-    cover_crop_months: Optional[int] = Field(default=None, ge=0, le=12)
     organic_amendments_tC_ha_yr: Optional[float] = Field(
         default=None, ge=0.0,
         description="Carbon in organic amendments (manure/compost), tC/ha/yr",
@@ -36,7 +26,7 @@ class ManagementInput(BaseModel):
     n_organic_kgN_ha_yr: Optional[float] = Field(
         default=None, ge=0.0, description="Organic N applied, kgN/ha/yr (0 = none applied)",
     )
-    irrigated: Optional[bool] = None
+    irrigated: Optional[bool] = Field(default=None, description="Used only without recorded irrigations")
     harvest_export_fraction: Optional[float] = Field(
         default=None, ge=0.0, le=1.0,
         description="Share of the above-ground biomass exported at harvest",

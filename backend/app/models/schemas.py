@@ -110,15 +110,6 @@ class TierSummaryResponse(BaseModel):
     yearly_aggregations: list[YearlyAggregation] = []
 
 
-class SensorInfo(BaseModel):
-    """AgriSensor info for weather source selector."""
-    id: str
-    name: str
-    sensor_type: str = ""
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-
-
 # ---------------------------------------------------------------------------
 # Error model
 # ---------------------------------------------------------------------------
