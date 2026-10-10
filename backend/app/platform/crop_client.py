@@ -50,6 +50,16 @@ def normalize_parcel_short_id(parcel_id: str) -> str:
     return parcel_id.split(":")[-1] if ":" in parcel_id else parcel_id
 
 
+def parcel_short(parcel_id: str) -> str:
+    """Short parcel id (last URN segment)."""
+    return parcel_id.rsplit(":", 1)[-1]
+
+
+def canonical_parcel_urn(parcel_id: str) -> str:
+    """The AgriParcel id as stored in the broker: urn:ngsi-ld:AgriParcel:{short}, no tenant."""
+    return f"urn:ngsi-ld:AgriParcel:{parcel_short(parcel_id)}"
+
+
 def parcel_urn(tenant_id: str, parcel_short: str) -> str:
     return f"urn:ngsi-ld:AgriParcel:{tenant_id}:{parcel_short}"
 
