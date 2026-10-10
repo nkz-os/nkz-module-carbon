@@ -197,6 +197,7 @@
       "rolling": "roulage",
       "subsoiling": "sous-solage",
       "roller_crimper": "rouleau faca"
-    }
+    },
+    "irrigation_unknown": "aucune irrigation enregistrée ni déclarée (traité en sec)"
   }
 }

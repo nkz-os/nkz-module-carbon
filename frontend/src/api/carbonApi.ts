@@ -107,7 +107,7 @@ export interface InputsSummary {
   vi: Partial<Record<'NDVI' | 'OSAVI', ViSummary>>;
   soil: { source: string; soc_tC_ha: number; clay_pct: number; depth_cm: number } | null;
   operations: OperationUsed[];
-  irrigated: { value: boolean; source: 'operations' | 'declared' | null } | null;
+  irrigated: { value: boolean | null; source: 'operations' | 'declared' | null } | null;
 }
 
 export interface CampaignList {

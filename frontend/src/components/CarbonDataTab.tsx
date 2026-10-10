@@ -131,7 +131,8 @@ const CarbonDataTab: React.FC<CarbonDataTabProps> = ({ row }) => {
         )}
         {s.irrigated && (
           <div style={{ fontSize: '12px', color: colors.textSecondary, marginTop: '6px' }}>
-            {t('irrigated')}: {s.irrigated.value ? t('yes') : t('no')}
+            {t('irrigated')}:{' '}
+            {s.irrigated.value === null ? t('data.irrigation_unknown') : s.irrigated.value ? t('yes') : t('no')}
             {s.irrigated.source && ` (${t(`data.from_${s.irrigated.source}`)})`}
           </div>
         )}

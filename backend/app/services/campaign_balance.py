@@ -285,7 +285,7 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
     elif period_irrigations:
         irrigated_value, irrigated_source = True, "operations"
     else:
-        irrigated_value, irrigated_source = False, None
+        irrigated_value, irrigated_source = None, None  # unknown: no record, no declaration
     if rh is not None and npp_t is not None:
         n_syn, n_org, n_gaps = _nitrogen(inp, through)
         missing.extend(n_gaps)
@@ -293,6 +293,8 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
             rain = sum(m.rain_mm for m in months)
             et0 = sum(m.et0_mm for m in months)
             irrigated = bool(irrigated_value)
+            if irrigated_value is None:
+                assumptions.append("no irrigation recorded or declared: N2O water regime treated as rainfed")
             res = compute_n2o(N2OInputs(
                 n_applied_synthetic_kgN_ha_yr=n_syn, n_applied_organic_kgN_ha_yr=n_org,
                 precip_annual_mm=rain, etp_annual_mm=et0, irrigated=irrigated, wet_climate=rain > et0,
@@ -485,5 +487,5 @@ def _inputs_summary(inp: CampaignInputs, period_days: list, through: Optional[da
         "vi": vi,
         "soil": soil,
         "operations": ops,
-        "irrigated": {"value": irrigated_value, "source": irrigated_source} if irrigated_value is not None else None,
+        "irrigated": {"value": irrigated_value, "source": irrigated_source},
     }

@@ -197,6 +197,7 @@
       "rolling": "arrabola",
       "subsoiling": "azpilurra lantzea",
       "roller_crimper": "aizto-arrabola"
-    }
+    },
+    "irrigation_unknown": "ureztatzerik ez erregistratuta ez adierazita (lehorreko gisa tratatzen da)"
   }
 }

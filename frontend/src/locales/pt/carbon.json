@@ -197,6 +197,7 @@
       "rolling": "rolagem",
       "subsoiling": "subsolagem",
       "roller_crimper": "rolo-faca"
-    }
+    },
+    "irrigation_unknown": "sem regas registadas nem declaradas (tratado como sequeiro)"
   }
 }

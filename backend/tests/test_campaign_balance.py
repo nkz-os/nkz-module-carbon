@@ -292,3 +292,10 @@ def test_inputs_summary_lists_sources_and_operations():
     kinds = [(o["type"], o["date"]) for o in s["operations"]]
     assert ("fertilization", "2026-03-01") in kinds and ("harvest", "2026-07-01") in kinds and ("baling", "2026-07-03") in kinds
     assert s["vi"]["NDVI"]["max_gap_days"] == 10
+
+
+def test_unknown_irrigation_is_declared_as_rainfed_assumption():
+    fert = (FertilizationEvent(date(2026, 3, 1), 54.0, False, "operation"),)
+    b = compute_campaign_balance(_inp(fertilizations=fert))
+    assert b.tier == 3 and b.inputs_summary["irrigated"] == {"value": None, "source": None}
+    assert any("rainfed" in a for a in b.assumptions)

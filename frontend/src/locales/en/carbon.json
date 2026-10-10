@@ -197,6 +197,7 @@
       "rolling": "rolling",
       "subsoiling": "subsoiling",
       "roller_crimper": "roller crimper"
-    }
+    },
+    "irrigation_unknown": "no irrigation recorded or declared (treated as rainfed)"
   }
 }

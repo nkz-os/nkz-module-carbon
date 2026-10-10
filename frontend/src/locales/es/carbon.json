@@ -197,6 +197,7 @@
       "rolling": "rulado",
       "subsoiling": "subsolado",
       "roller_crimper": "rodillo de cuchillas"
-    }
+    },
+    "irrigation_unknown": "sin riegos registrados ni declarados (se trata como secano)"
   }
 }
