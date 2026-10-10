@@ -1,367 +1,180 @@
-# Carbon Sequestration Methodology — Nekazari Carbon Module
+# Carbon Balance Methodology — Nekazari Carbon Module
 
-> **Version:** 0.1.0 | **License:** AGPL-3.0 | **Standards:** Verra VM0042, Gold Standard SOC Framework
+> **Version:** 0.2.0 (engine 3.0.0) | **License:** AGPL-3.0 | **Report type:** monitoring estimate, not certified
 
 ## 1. Overview
 
-The Nekazari Carbon Module quantifies carbon sequestration in agricultural parcels using a three-tier approach of increasing precision. Each tier adds data sources and model complexity, reducing uncertainty while maintaining full traceability.
+The module computes, for each parcel and **campaign** (1 January – 31 December, labelled by the year), a carbon
+balance from measured or modelled series only. A value that cannot be derived from real inputs is not defaulted:
+it is listed in `missing` with the reason and what it blocks.
 
-| Tier | Model | Precision | Minimum Data Required |
-|------|-------|-----------|----------------------|
-| 1 | LUE (Light Use Efficiency) | ±35–40% | Satellite vegetation index + weather |
-| 2 | LUE + RothC soil carbon | ±20–25% | Tier 1 + soil type + crop phenology + management |
-| 3 | Full GHG budget (N₂O, CH₄, NEE) | ±10–15% | Tier 2 + soil sensors + plant sensors + fertilization log |
+| Tier | What is computed | Needs |
+|------|------------------|-------|
+| 1 | Plant production (GPP, NPP) with a light-use-efficiency model | daily weather, NDVI, crop cycles, calibrated crop parameters |
+| 2 | Soil organic carbon change with RothC | Tier 1 for every cycle day + soil SOC and clay + known exports |
+| 3 | N₂O and the net CO₂-equivalent balance | Tier 2 + the N applied in the campaign |
 
-The tier is selected **automatically** based on available data — the user never chooses a tier. Each calculation result includes a confidence score derived from the actual uncertainty distribution, never assigned a priori.
+The tier reported is the highest one actually computed. Sensors are not required by any formula.
 
----
+### 1.1 Period and open campaigns
 
-## 2. Tier 1 — Light Use Efficiency (LUE) Model
+Accounting is by time: a campaign holds what happens between 1 January and `computedThrough`, the last day of
+the last month whose daily weather is complete. The campaign in progress is recomputed every day. A crop cycle
+that crosses the year contributes to each campaign the days that fall in it; its biomass returns to the soil in
+the month the cycle ends, with everything it grew since sowing.
 
-### 2.1 Spectral Index Selection
+### 1.2 Inputs
 
-The vegetation index used depends on crop morphological type:
+| Input | Source |
+|-------|--------|
+| Crop cycles (start, end, role, provenance) | platform crop-cycle resolver |
+| Daily min/max temperature, precipitation, ET0, global radiation | platform parcel daily weather (gaps filled from model analysis and reanalysis) |
+| NDVI per acquisition | `EOProduct` entities (Sentinel-2) |
+| Soil SOC and clay, 0–30 cm | `AgriSoilExtended` horizons, or laboratory values declared by the farmer |
+| Harvest, fertilization, tillage, baling | completed `AgriParcelOperation` entities |
+| Export fractions, amendments, irrigation | management form, only when the farmer saved it |
 
-| Crop Type | Index | Formula |
-|-----------|-------|---------|
-| Herbaceous (cereals, annuals) | NDVI | (NIR − RED) / (NIR + RED) |
-| Woody (olive, vine, fruit trees) | OSAVI (L=0.16) | (NIR − RED) / (NIR + RED + 0.16) |
-| Universal fallback | MSAVI2 | (2·NIR + 1 − √((2·NIR+1)² − 8·(NIR−RED))) / 2 |
+Each value carries its provenance (`operation`, `declared`, or the source name).
 
-**Rationale:** NDVI saturates at high biomass (LAI > 3), common in dense olive canopies and forests. OSAVI reduces soil background reflectance — critical for woody crops with open canopies where bare soil between trees inflates NDVI. MSAVI2 provides a self-adjusting alternative when the soil adjustment factor L cannot be determined.
+## 2. Tier 1 — Light Use Efficiency
 
-**Source:** Myneni & Williams (1994), Pôças et al. (2014), Qi et al. (1994)
-
-### 2.2 Cloud Masking
-
-Sentinel-2 Scene Classification Layer (SCL) masks classes 3 (cloud shadow), 8 (cloud medium probability), 9 (cloud high probability), 10 (cirrus), and 11 (snow). Linear temporal interpolation fills gaps between valid observations. Monthly composites require a minimum of 2 valid observations.
-
-### 2.3 Fraction of Absorbed Photosynthetically Active Radiation (fAPAR)
-
-```
-fAPAR = clamp(a · VI + b, 0, 0.95)
-```
-
-| Crop Type | a | b | VI | Source |
-|-----------|---|---|----|--------|
-| C3 herbaceous | 1.24 | −0.168 | NDVI | Myneni & Williams (1994) |
-| Olive | 1.40 | −0.240 | OSAVI | Pôças et al. (2014) |
-| C4 species | requires calibration | — | — | No default applied |
-
-Parameters sourced from BioOrchestrator `PhenologyParams` where available. If a species has no parametrization, the calculation degrades explicitly — a generic default is never assumed.
-
-### 2.4 Photosynthetically Active Radiation (PAR)
-
-**Priority order:**
-1. Weather-worker API (`GET /api/weather/par?lat=&lon=&date=`)
-2. Clear-sky calculation (FAO-56, Allen et al. 1998):
+For each day inside a crop cycle:
 
 ```
-Ra       = extraterrestrial_solar_radiation(lat, DOY)     [MJ/m²/day]
-Rs_clear = 0.75 · Ra                                       [MJ/m²/day]
-PAR      = 0.48 · Rs_clear                                 [MJ/m²/day]
+PAR   = 0.48 · Rg                                   [MJ m⁻² d⁻¹]
+fAPAR = clamp(a · NDVI + b, 0, 0.95)
+GPP   = PAR · fAPAR · LUE                           [gC m⁻² d⁻¹]
+NPP   = 0.5 · GPP
 ```
 
-When the clear-sky fallback is used, the result is flagged `data_quality=synthetic_par` for full traceability. No generic constant is ever used.
+NDVI is interpolated linearly between acquisitions, never extrapolated, and not across gaps longer than 60 days.
+A day without NDVI, without weather or for a crop without calibrated parameters is not computed; the share of
+cycle days computed is reported as `tier1Coverage`. When two cycles overlap, the one started last produces.
 
-### 2.5 Light Use Efficiency (LUE)
+Crop parameters come from BioOrchestrator when it returns LUE, fAPAR coefficients and root fraction together,
+otherwise from the calibrated table below. Species not listed have no calibration and are reported as missing.
 
-LUE is sourced from BioOrchestrator by photosynthetic type. If the species is not found, the calculation fails explicitly — a generic fallback is never applied.
+| Crop | LUE [gC/MJ] | fAPAR a, b | Index | Root fraction |
+|------|-------------|------------|-------|---------------|
+| Wheat / barley | 1.1 / 1.0 | 1.24, −0.168 | NDVI | 0.22 |
+| Maize | 1.7 | 1.24, −0.168 | NDVI | 0.18 |
+| Rice / sunflower / soybean / sugarcane | 1.3 / 1.3 / 1.2 / 1.8 | 1.24, −0.168 | NDVI | 0.15–0.20 |
+| Olive, vineyard, almond, citrus | — | 1.40, −0.240 | OSAVI | 0.20–0.25 |
 
-| Photosynthetic Type | LUE Range [gC/MJ] | Example Crops |
-|--------------------|-------------------|---------------|
-| C3 temperate | 0.9–1.2 | Wheat, barley, olive |
-| C3 tropical | 1.2–1.5 | Rice |
-| C4 | 1.5–1.8 | Corn, sorghum, sugarcane |
-| Olive (specific) | 0.8–1.0 | Olea europaea (Villalobos et al. 2006) |
+Woody crops are calibrated on OSAVI (Pôças et al. 2014). The platform publishes NDVI per acquisition but not
+OSAVI, so woody crops get no Tier 1 until OSAVI is available.
 
-### 2.6 Gross and Net Primary Production
+## 3. Carbon reaching the soil
 
-```
-GPP           = PAR × fAPAR × LUE                           [gC/m²/day]
-NPP_total     = GPP × CUE                                   [gC/m²/day], CUE = 0.5
-NPP_aerea     = NPP_total × (1 − root_fraction)             [gC/m²/day]
-NPP_radicular = NPP_total × root_fraction                   [gC/m²/day]
-```
-
-`root_fraction` from BioOrchestrator. Defaults: cereals 0.20–0.25, young olive 0.30, adult olive 0.20, pasture 0.50–0.65.
-
-### 2.7 Above- and Below-Ground Biomass
+NPP is split into shoot, root and exudates. Exudates are part of the below-ground share:
 
 ```
-AGB_dry = (NPP_aerea / 0.45) × 0.01                        [tDM/ha/day]
-BGB_dry = (NPP_radicular / 0.45) × 0.01                    [tDM/ha/day]
+exudates = 0.07 · NPP                  enter the soil the month they are produced
+roots    = (root_fraction − 0.07) · NPP   accumulated, enter the soil when the cycle ends
+shoot    = (1 − root_fraction) · NPP      accumulated; at the end, shoot − exported enters the soil
 ```
 
-Where 0.45 is the carbon fraction of dry matter (gC/gDM) and 0.01 converts g/m² to t/ha.
-
-### 2.8 CO₂ Sequestration (Gross Photosynthetic Sink)
+Exported carbon at harvest (within 60 days of the cycle end):
 
 ```
-CO₂_sequestered = NPP_total × 3.664 × 10                   [kgCO₂/ha/day]
+exported = harvested_weight · (1 − moisture) · 0.45 / area      [tC/ha]
 ```
 
-Where 3.664 = 44/12 converts gC to gCO₂. **Important:** Tier 1 measures the gross photosynthetic sink and does NOT subtract soil heterotrophic respiration (Rh). This is why Tier 1 carries ±35–40% uncertainty — it converges to true Net Ecosystem Exchange only at Tiers 2–3 where Rh from the RothC model is included.
+Without weight or moisture, the declared harvest-export fraction is used; without either, the export is
+missing and Tier 2 is not computed. Baling removes the declared share of the remaining residue. A cover crop
+without a harvest returns all its biomass. Perennial crops are reported without Tier 2: pruning and litter
+inputs are not known.
 
----
+Organic amendments: the carbon declared by the farmer (tC/ha/yr), placed in the months of the organic
+fertilizations, or spread evenly when there are none. An organic fertilization without declared carbon blocks
+Tier 2.
 
-## 3. Tier 2 — RothC Soil Carbon Model
+## 4. Tier 2 — RothC
 
-### 3.1 Model Description
+The soil model is RothC, standard 1990 version (Jenkinson 1990; Coleman & Jenkinson), implemented step by step
+as the official Rothamsted Python code (RothC_Py, Apache-2.0) and validated against its published example to a
+relative tolerance of 10⁻⁶.
 
-RothC (Rothamsted Carbon Model, Jenkinson 1990) simulates soil organic carbon turnover in five conceptual pools. It is the reference model for Verra VM0042 and the Gold Standard SOC Framework.
+- Pools DPM, RPM, BIO, HUM (k = 10, 0.3, 0.66, 0.02 yr⁻¹) and inert IOM; monthly time step.
+- Temperature modifier `47.91 / (1 + exp(106.06 / (T + 18.27)))`, zero below −5 °C.
+- Topsoil moisture deficit with `rain − 0.75 · pan evaporation`, maximum deficit
+  `−(20 + 1.3·clay − 0.01·clay²) · depth/23`, bare-soil limit 0.556 of it, rate modifier from 1 to 0.2.
+  Pan evaporation is ET0 / 0.75, as the official model description prescribes for potential evapotranspiration.
+- Cover modifier 0.6 when the month is covered (at least half of its days inside a cycle), 1.0 otherwise.
+- Decomposed carbon splits into CO₂ and BIO + HUM with `x = 1.67 · (1.85 + 1.60 · exp(−0.0786 · clay))`;
+  the retained part goes 46 % to BIO and 54 % to HUM.
+- Plant inputs split DPM:RPM = 1.44; farmyard manure 49 % DPM, 49 % RPM, 2 % HUM.
+- Soil depth: 30 cm (the layer of the SOC stock).
 
-### 3.2 Carbon Pools
+### 4.1 Initial state and chaining
 
-| Pool | Symbol | k [yr⁻¹] | Mean Residence Time |
-|------|--------|----------|-------------------|
-| Decomposable Plant Material | DPM | 10.0 | 0.1 years |
-| Resistant Plant Material | RPM | 0.30 | 3.3 years |
-| Microbial Biomass | BIO | 0.66 | 1.5 years |
-| Humified Organic Matter | HUM | 0.02 | 50 years |
-| Inert Organic Matter | IOM | 0.0 | infinite |
+The first campaign starts from the measured SOC partitioned with Weihermüller et al. (2013); when the partition
+exceeds the stock, DPM is zero and the other active pools are scaled so the pools add up to the measured SOC.
+The moisture deficit starts at zero on 1 January. Every later campaign starts from the pools stored at 31
+December of the previous one. Computing an earlier campaign restarts the chain and recomputes the following ones.
 
-### 3.3 Rate Modifiers
-
-**Temperature modifier** (Jenkinson 1990, canonical):
-
-```
-a_temp = 47.91 / (1 + exp(106.06 / (T_celsius + 18.27)))
-```
-
-Clamped at T ≤ −18°C to prevent numerical singularity. The Q₁₀ = 2.0 simplification is explicitly rejected — RothC's rate-temperature relationship is not a simple exponential.
-
-**Moisture modifier — Topsoil Moisture Deficit (TSMD):**
-
-TSMD is computed from a monthly water balance using precipitation and potential evapotranspiration, modulated by vegetation cover (ETP reduced by 25% when cover fraction > 0.5). The maximum TSMD depends on clay content:
-
-```
-TSMD_max = 20.0 + 1.3 · clay_pct − 0.01 · clay_pct²
-```
-
-The moisture rate modifier is:
+SOC stock 0–30 cm from horizons:
 
 ```
-b = 1.0                              if TSMD < 0.444 · TSMD_max
-b = 0.2 + 0.8 · (TSMD_max − TSMD)    otherwise
-          / (TSMD_max − 0.444 · TSMD_max)
+SOC = Σ OC[%] · BD[g cm⁻³] · thickness[cm] · (1 − coarse fragments)        [tC/ha]
 ```
 
-**Critical:** TSMD measures soil moisture deficit — it is NOT interchangeable with CWSI (Crop Water Stress Index). CWSI measures plant water stress via canopy temperature and is used exclusively by the crop-health module, never as a RothC soil modifier input.
+Horizons with bulk density outside 0.5–2.2 g cm⁻³ or without organic carbon make the stock missing.
 
-**Vegetation cover modifier:**
+## 5. Tier 3 — N₂O and net balance
 
-```
-c_cover = 0.6  if vegetation is actively growing
-c_cover = 1.0  if bare fallow
-```
-
-Vegetation cover reduces decomposition rates by ~40% compared to bare soil (RothC original formulation).
-
-### 3.4 Pool Initialization — Weihermüller et al. (2013)
-
-Pool initialization avoids the need for a multi-century equilibrium spin-up by directly partitioning total SOC into RothC pools using pedotransfer functions:
+N applied = fertilizer rate × N share of its N-P-K grade, per completed fertilization. N₂O follows the IPCC 2019
+Refinement (Vol. 4, Ch. 11): EF1 for wet or dry climate — wet when precipitation exceeds ET0 over the computed
+months, or when irrigated — plus volatilization (EF4) and leaching (EF5). GWP100 from IPCC AR6 (N₂O = 273).
 
 ```
-IOM = 0.049 · SOC_total^1.139
-RPM = (0.1847 · SOC_total + 0.1555) · (clay_pct + 1.2750)^(−0.1158)
-HUM = (0.7148 · SOC_total + 0.5069) · (clay_pct + 0.3421)^0.0184
-BIO = (0.0140 · SOC_total + 0.0075) · (clay_pct + 8.8473)^0.0567
-DPM = SOC_total − (RPM + HUM + BIO + IOM)
+NEE        = −(NPP − Rh) · 44/12                        [tCO₂/ha]
+NECB       = NPP − Rh − exported C + imported C          [tC/ha]
+CO₂eq net  = −NECB · 44/12 + N₂O                         [tCO₂eq/ha]
 ```
 
-### 3.5 SOC Data Provenance
+The net balance uses NECB, not NEE: exported harvest is respired off the farm and is not sequestration.
+Negative values are a net sink.
 
-SOC_total at project start (t=0) is sourced by priority:
+## 6. Uncertainty
 
-1. Farmer soil laboratory analysis (Walkley-Black or dry combustion) — **mandatory for olive**
-2. LUCAS Soil 2018 — if parcel < 5 km from sampling point AND same land use
-3. MITECO 2021 SOC map — Spain only
-4. SoilGrids 2.0 (250 m, ISRIC) — global fallback
+GPP uses analytical propagation with relative uncertainties of 10 % (PAR), 8 % (fAPAR) and 15 % (LUE). These are
+model assumptions and are published with every result. The soil carbon change carries a 95 % interval from 500
+Latin-hypercube samples of the plant-input multiplier. Soil-property uncertainty is not included.
 
-The data provenance is recorded on every calculation for auditability.
+## 7. Projection and monitoring report
 
-### 3.6 Carbon Inputs to Soil
-
-Inputs are partitioned by source with differential humification:
-
-| Source | Humification Coefficient | DPM:RPM Ratio | Reference |
-|--------|------------------------|---------------|-----------|
-| Above-ground residues | 1.0 | 1.44 (59:41) | Jenkinson (1990) |
-| Roots | 2.3 | 1.0 | Rasse et al. (2005), Kätterer et al. (2011) |
-| Root exudates | 2.3 | 2.0 | Pausch & Kuzyakov (2018) |
-| Organic amendments (composted manure) | 1.7 | 49:49:2* | — |
-
-*Manure split is fixed 49% DPM, 49% RPM, 2% HUM (bypasses source ratio).
-
-Root-derived carbon is 2.3× more recalcitrant than shoot-derived carbon because root tissues contain more lignin and suberin, and root-derived C is physically protected within soil aggregates.
-
-Exudate fraction is assumed at 7% of NPP (Pausch & Kuzyakov 2018).
-
-### 3.7 Monthly Evolution
-
-```
-For each pool in [DPM, RPM, BIO, HUM]:
-    decay = exp(−k × a_temp(T) × b(TSMD) × c_cover × 1/12)
-    C_pool(t+1) = C_pool(t) × decay + C_input_pool
-IOM: no decay
-```
-
----
-
-## 4. Tier 3 — Full GHG Budget
-
-### 4.1 Global Warming Potentials — IPCC AR6
-
-| Gas | GWP100 (AR6) | AR5 Value (not used) |
-|-----|-------------|---------------------|
-| N₂O | 273 | 298 |
-| CH₄ (non-fossil) | 27 | 34 |
-| CH₄ (fossil) | 29.8 | — |
-
-AR6 values are used because they reflect the latest scientific consensus on radiative forcing.
-
-### 4.2 Nitrous Oxide (N₂O) — IPCC 2019 Refinement
-
-**Direct emissions:**
-
-```
-N₂O_direct = N_applied × EF1 × 44/28                [kgN₂O/ha/yr]
-```
-
-EF1 depends on water regime and fertilizer type:
-
-| Water Regime | Synthetic EF1 | Organic EF1 |
-|-------------|-------------|------------|
-| Humid / Irrigated (precip > 1000 mm/yr) | 0.016 | 0.006 |
-| Dry | 0.005 | 0.005 |
-
-**Indirect emissions:**
-
-```
-N₂O_volatilization = N_applied × FracGASF × EF4 × 44/28
-N₂O_leaching       = N_applied × FracLEACH × EF5 × 44/28
-
-N₂O_total = N₂O_direct + N₂O_volatilization + N₂O_leaching
-```
-
-Where:
-- `FracGASF` = 0.10 (synthetic), 0.20 (organic) — IPCC 2019 Table 11.3
-- `EF4` = 0.014 — N volatilized and re-deposited
-- `FracLEACH` = 0.30 when annual precipitation exceeds ETP
-- `EF5` = 0.011 — N leached/runoff
-
-### 4.3 Net Ecosystem Exchange (NEE)
-
-```
-Ra  = GPP − NPP_total                                   [autotrophic respiration]
-Rh  = Σ(decay_pool for each active RothC pool)          [heterotrophic respiration]
-NEE = −(NPP_total − Rh)                                 [negative = carbon sink]
-```
-
-### 4.4 Net Ecosystem Carbon Balance (NECB)
-
-```
-NECB = NEE − C_harvest_exported + C_amendments_imported
-```
-
-### 4.5 Net CO₂-equivalent Balance
-
-```
-CO₂eq_net = NEE(CO₂) + N₂O(CO₂eq) + CH₄(CO₂eq)
-```
-
-Negative values indicate a net sink (more sequestration than emissions).
-
----
-
-## 5. Uncertainty Quantification
-
-### 5.1 Tier 1 — Gaussian Analytical Propagation
-
-For the product GPP = PAR × fAPAR × LUE, the relative variance is:
-
-```
-(σ_GPP / GPP)² = (σ_PAR / PAR)² + (σ_fAPAR / fAPAR)² + (σ_LUE / LUE)²
-```
-
-### 5.2 Tier 2 — Latin Hypercube Sampling
-
-500 stratified samples from the joint distribution of input parameters (SOC_total, clay_pct, monthly temperature, precipitation, C input rates). The RothC model is run for each sample set, producing a distribution of SOC_delta values.
-
-### 5.3 Tier 3 — Full Monte Carlo
-
-5000 random samples (audit flag only). Identical parameter space to Tier 2, with larger sample size for Verra verification-grade uncertainty bounds.
-
-### 5.4 Confidence Score
-
-```
-confidence = 1 − (CI95_width / mean_estimate)
-```
-
-Confidence is always derived from the actual uncertainty distribution, never assigned a priori.
-
----
-
-## 6. Historical Baseline Reconstruction
-
-For VM0042, a 10-year pre-project baseline is required. The reconstructor module assembles this from:
-
-1. **SIGPAC** (Spain): Annual land use declarations per agricultural parcel (recinto)
-2. **Sentinel-2** (ESA/Copernicus): NDVI/LAI timeseries at 10 m resolution since June 2015
-3. **ERA5-Land** (ECMWF/Copernicus): Hourly climate reanalysis at 9 km, aggregated to monthly
-4. **CORINE Land Cover**: Land use change detection (forest ↔ agricultural) pre-2015
-
-Data from multiple sources is harmonized to a common monthly timestep via spatial reprojection (EPSG:25830 for peninsular Spain) and temporal alignment with gap interpolation.
-
-A RothC spin-up runs from t=−10 to t=0 using reconstructed inputs to establish the project baseline SOC state.
-
----
-
-## 7. MRV Standards Compliance
-
-### 7.1 Verra VM0042 — Improved Agricultural Land Management
-
-The module generates VM0042-compliant reports including:
-
-- **§5.5:** Baseline scenario with management parameters, input hashing (SHA-256), and calculation run anchoring
-- **§8:** Project scenario with net emission reductions, 20% buffer pool deduction, and verified credit calculation
-- **Additionality:** Regulatory surplus demonstrated via baseline/project comparison
-- **Permanence:** 20-year SOC projection with RothC
-
-### 7.2 Gold Standard — Soil Organic Carbon Framework
-
-Gold Standard reports include all VM0042 elements plus SOC baseline measurement requirements and sustainable development contribution documentation.
-
----
+- **Projection:** the last complete campaign with a soil balance is repeated year after year from its 31
+  December pools. With a baseline scenario, its reference campaign is replayed under the same climate.
+- **Report:** the stored campaigns of the chosen range, with the baseline (a computed reference campaign
+  replayed under each campaign's own climate) when one is defined. It follows the structure of VM0042 or the
+  Gold Standard SOC framework but is a **monitoring estimate, not a certification**: it lists what certification
+  would still need (initial soil sampling, periodic re-sampling, independent verification, a defined baseline,
+  Tier 3).
 
 ## 8. Validation
 
-The model has been validated against:
+1. **Official RothC example:** monthly pools and SOC match the published results (relative error < 10⁻⁶).
+2. **Mass conservation:** each RothC step and each campaign balance closes to 10⁻⁹ tC/ha.
+3. **Rothamsted Broadbalk:** directional check, FYM > NPK > control.
+4. **Monotonicity:** more organic amendment never lowers final SOC.
 
-1. **Rothamsted Long-Term Experiments** (Broadbalk, Hoosfield): SOC trends over 150+ years of continuous wheat with different treatments. Directional validation: FYM > NPK > Control.
-2. **Cool Farm Tool cross-check**: 5 Mediterranean scenarios (cereal dryland/irrigated, olive traditional/intensive, vineyard). All scenarios produce physically reasonable NEE ranges.
-3. **Mass conservation**: Σ(C_inputs) − Σ(C_outputs) − ΔSOC = 0 ± 0.1% verified for 1–20 year simulations.
-4. **Monotonicity**: Increasing organic amendments monotonically increase final SOC.
-
----
-
-## 9. Key Scientific References
+## 9. References
 
 | Reference | Application |
 |-----------|------------|
-| Allen et al. (1998). FAO-56. | Clear-sky PAR, ETo calculation |
-| IPCC (2019). 2019 Refinement to the 2006 IPCC Guidelines. Vol 4, Ch 11. | N₂O emission factors |
-| IPCC (2021). AR6 WG1. Ch 7. | GWP100 values |
-| Jenkinson, D.S. (1990). Phil. Trans. R. Soc. B. 329:361-369. | RothC model |
-| Kätterer et al. (2011). Plant Soil. 338:261-272. | Root humification coefficient |
-| Myneni & Williams (1994). Remote Sens. Environ. 49:200-211. | fAPAR-NDVI relationship |
-| Pausch & Kuzyakov (2018). Soil Biol. Biochem. 116:250-261. | Exudate fraction of NPP |
-| Pôças et al. (2014). Agric. Water Manage. 142:15-27. | Olive fAPAR-OSAVI relationship |
-| Rasse et al. (2005). Plant Soil. 269:341-356. | Root vs shoot decomposition |
-| Villalobos et al. (2006). Eur. J. Agron. 24:282-291. | Olive LUE values |
-| Weihermüller et al. (2013). Eur. J. Soil Sci. 64:570-585. | RothC pool initialization |
+| Allen et al. (1998). FAO-56. | ET0 |
+| Coleman, K. & Jenkinson, D.S. RothC — A model for the turnover of carbon in soil (model description). | RothC |
+| IPCC (2019). 2019 Refinement, Vol. 4, Ch. 11. | N₂O |
+| IPCC (2021). AR6 WG1, Ch. 7. | GWP100 |
+| Jenkinson, D.S. (1990). Phil. Trans. R. Soc. B 329:361–369. | RothC |
+| Myneni & Williams (1994). Remote Sens. Environ. 49:200–211. | fAPAR–NDVI |
+| Pausch & Kuzyakov (2018). Soil Biol. Biochem. 116:250–261. | Root exudation |
+| Pôças et al. (2014). Agric. Water Manage. 142:15–27. | Olive fAPAR–OSAVI |
+| Rothamsted Research, RothC_Py (2024), Apache-2.0. | Reference implementation |
+| Villalobos et al. (2006). Eur. J. Agron. 24:282–291. | Olive LUE |
+| Weihermüller et al. (2013). Eur. J. Soil Sci. 64:570–585. | Pool initialization |
 
 ---
 
-*Last updated: 2026-05-03*
+*Last updated: 2026-10-10*
