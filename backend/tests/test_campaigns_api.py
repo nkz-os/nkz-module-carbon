@@ -28,22 +28,31 @@ def client(monkeypatch):
     return TestClient(app)
 
 
-def test_calculate_returns_balance(client, monkeypatch):
+def test_calculate_returns_the_stored_row(client, monkeypatch):
     b = compute_campaign_balance(_inp())
     monkeypatch.setattr(api, "run_campaign", AsyncMock(return_value=b))
+    monkeypatch.setattr(api, "get_campaign", AsyncMock(return_value={"campaign_label": 2026, "data_tier": b.tier}))
+    monkeypatch.setattr(api, "get_campaign_stock", AsyncMock(return_value={
+        "dpmPool": {"value": 0.1}, "rpmPool": {"value": 5.0}, "bioPool": {"value": 0.7},
+        "humPool": {"value": 27.0}, "iomPool": {"value": 3.0}, "soilWaterDeficit": {"value": 0.0},
+        "stateDate": {"value": "2026-09-30"}}))
     r = client.post("/api/carbon/parcels/abc/campaigns/2026/calculate", headers=H)
     assert r.status_code == 200
     body = r.json()
-    assert body["year"] == 2026 and body["tier"] == b.tier and body["computed_through"] == "2026-09-30"
-    assert body["cycles"][0]["start"] == "2026-01-01" and isinstance(body["missing"], list)
+    assert body["campaign_label"] == 2026 and body["data_tier"] == b.tier
+    assert body["pools_end"]["HUM"] == 27.0 and body["pools_state_date"] == "2026-09-30"
 
 
 def test_calculate_empty_balance_is_200(client, monkeypatch):
     from test_campaign_balance import _weather
     b = compute_campaign_balance(_inp(today=date(2026, 1, 20), weather=_weather(date(2026, 1, 1), date(2026, 1, 19))))
     monkeypatch.setattr(api, "run_campaign", AsyncMock(return_value=b))
+    monkeypatch.setattr(api, "get_campaign", AsyncMock(return_value={
+        "campaign_label": 2026, "data_tier": 0, "missing": [m.to_dict() for m in b.missing]}))
+    monkeypatch.setattr(api, "get_campaign_stock", AsyncMock(return_value=None))
     r = client.post("/api/carbon/parcels/abc/campaigns/2026/calculate", headers=H)
-    assert r.status_code == 200 and r.json()["tier"] == 0 and r.json()["missing"][0]["item"] == "weather"
+    assert r.status_code == 200 and r.json()["data_tier"] == 0 and r.json()["missing"][0]["item"] == "weather"
+    assert r.json()["pools_end"] is None
 
 
 def test_calculate_source_down_is_503(client, monkeypatch):

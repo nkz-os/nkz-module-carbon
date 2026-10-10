@@ -10,9 +10,7 @@ import asyncio
 import hmac
 import logging
 import os
-from dataclasses import asdict, is_dataclass
 from datetime import date
-from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 
@@ -22,8 +20,8 @@ from app.common.tier_check import check_tier
 from app.db.database import list_tenants_with_module
 from app.platform.crop_client import canonical_parcel_urn
 from app.platform.errors import SourceUnavailable
-from app.services.campaign_runner import get_campaign, list_campaigns, run_campaign
-from app.services.campaign_types import CampaignBalance
+from app.ngsild.campaign_entities import stock_state
+from app.services.campaign_runner import get_campaign, get_campaign_stock, list_campaigns, run_campaign
 
 logger = logging.getLogger(__name__)
 
@@ -33,20 +31,17 @@ INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "")
 _RECALC_CONCURRENCY = 2
 
 
-def _plain(v: Any) -> Any:
-    if isinstance(v, date):
-        return v.isoformat()
-    if isinstance(v, (list, tuple)):
-        return [_plain(x) for x in v]
-    if isinstance(v, dict):
-        return {k: _plain(x) for k, x in v.items()}
-    return v
-
-
-def balance_to_dict(b: CampaignBalance) -> dict:
-    d = {k: _plain(v) for k, v in asdict(b).items() if k != "end_state"}
-    d["pools_end"] = b.end_state.pools.to_dict() if b.end_state else None
-    return d
+async def _row_with_pools(tenant_id: str, entity_id: str, year: int) -> dict | None:
+    row = await get_campaign(tenant_id, entity_id, year)
+    if row is None:
+        return None
+    stock = await get_campaign_stock(tenant_id, entity_id, year)
+    if stock:
+        state, when = stock_state(stock)
+        row["pools_end"], row["pools_state_date"] = state.pools.to_dict(), when.isoformat()
+    else:
+        row["pools_end"], row["pools_state_date"] = None, None
+    return row
 
 
 def _unavailable(exc: SourceUnavailable) -> HTTPException:
@@ -65,7 +60,7 @@ async def get_campaigns(entity_id: str, auth: AuthContext = require_auth()):
 @router.get("/api/carbon/parcels/{entity_id}/campaigns/{year}")
 async def get_one_campaign(entity_id: str, year: int, auth: AuthContext = require_auth()):
     try:
-        row = await get_campaign(auth.tenant_id, entity_id, year)
+        row = await _row_with_pools(auth.tenant_id, entity_id, year)
     except SourceUnavailable as exc:
         raise _unavailable(exc)
     if row is None:
@@ -81,12 +76,15 @@ async def calculate_campaign(
     _tier_ok: None = Depends(check_tier),
 ):
     try:
-        balance = await run_campaign(auth.tenant_id, entity_id, year)
+        await run_campaign(auth.tenant_id, entity_id, year)
+        row = await _row_with_pools(auth.tenant_id, entity_id, year)
     except SourceUnavailable as exc:
         raise _unavailable(exc)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    return balance_to_dict(balance)
+    if row is None:  # written a moment ago: a broker that loses it is a broker fault
+        raise HTTPException(status_code=503, detail={"error": "source_unavailable", "detail": "result not readable"})
+    return row
 
 
 async def list_parcel_ids(tenant_id: str) -> list[str]:
