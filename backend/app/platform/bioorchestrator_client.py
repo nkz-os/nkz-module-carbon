@@ -20,12 +20,12 @@ class PhenologyParams:
     species: str
     scientific_name: str = ""
     stage: str = ""
-    kc: float = 0.0
+    kc: Optional[float] = None
     lue_gC_per_MJ: Optional[float] = None
     fapar_a: Optional[float] = None
     fapar_b: Optional[float] = None
     fapar_vi_type: str = "NDVI"
-    root_fraction: float = 0.22
+    root_fraction: Optional[float] = None
     photosynthetic_type: str = "C3"
     morphological_type: str = "herbaceous"
     match_level: str = "none"  # "exact" | "generic" | "none"
@@ -40,6 +40,14 @@ class SoilData:
     ph: float = 7.0
     soc_tC_ha: Optional[float] = None  # 0-30cm
     bulk_density_kg_m3: Optional[float] = None
+
+
+def _opt_float(v) -> Optional[float]:
+    """A number the source gave, or None — never a generic default."""
+    try:
+        return None if v is None else float(v)
+    except (TypeError, ValueError):
+        return None
 
 
 async def fetch_phenology_params(
@@ -75,12 +83,12 @@ async def fetch_phenology_params(
                 species=data.get("species", species),
                 scientific_name=data.get("scientific_name", ""),
                 stage=data.get("stage", ""),
-                kc=float(data.get("kc", 0.7)),
+                kc=_opt_float(data.get("kc")),
                 lue_gC_per_MJ=data.get("lue_gC_per_MJ"),
                 fapar_a=data.get("fapar_a"),
                 fapar_b=data.get("fapar_b"),
                 fapar_vi_type=data.get("fapar_vi_type", "NDVI"),
-                root_fraction=float(data.get("root_fraction", 0.22)),
+                root_fraction=_opt_float(data.get("root_fraction")),
                 photosynthetic_type=data.get("photosynthetic_type", "C3"),
                 morphological_type=data.get("morphological_type", "herbaceous"),
                 match_level=data.get("match_level", "generic"),
