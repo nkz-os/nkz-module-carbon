@@ -14,7 +14,7 @@ from __future__ import annotations
 import calendar
 import math
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from statistics import NormalDist
 from typing import Optional
@@ -30,7 +30,7 @@ from app.services.roth_c_model import (
     RothCMonth, RothCState, pan_evap_from_et0, run_months, weihermuller_pools,
 )
 
-ENGINE_VERSION = "3.1.0"
+ENGINE_VERSION = "3.2.0"
 
 PAR_FRACTION = 0.48          # PAR share of global radiation
 CUE = 0.5                    # NPP / GPP
@@ -47,6 +47,9 @@ C_TO_CO2 = 44.0 / 12.0
 
 _REL_SIGMA_GPP = math.sqrt(sum(v * v for v in SIGMA_REL.values()))
 
+# End dates that are an intention, not a fact: once passed, the cycle is still open.
+_UNCONFIRMED_END = {"planned", "default"}
+
 
 @dataclass
 class _CycleAcc:
@@ -62,6 +65,11 @@ class _CycleAcc:
 
 def _month_end(year: int, month: int) -> date:
     return date(year, month, calendar.monthrange(year, month)[1])
+
+
+def computed_through(year: int, today: date, weather) -> Optional[date]:
+    """Last day of the last complete month of daily weather before ``today`` (None: none yet)."""
+    return _computed_through(year, today, {w.day: w for w in weather})
 
 
 def _computed_through(year: int, today: date, by_day: dict) -> Optional[date]:
@@ -85,6 +93,8 @@ def _days(first: date, last: date) -> list[date]:
 
 
 def _empty(inp: CampaignInputs, missing: list[Missing], assumptions: list[str]) -> CampaignBalance:
+    last = min(date(inp.year, 12, 31), inp.today - timedelta(days=1))
+    irrigated_value, irrigated_source = _irrigation(inp, date(inp.year, 1, 1), last)
     return CampaignBalance(
         year=inp.year, period_start=date(inp.year, 1, 1), period_end=date(inp.year, 12, 31),
         computed_through=None, tier=0, cover_days=0, bare_days=0, gpp_tC_ha=None, npp_tC_ha=None,
@@ -93,7 +103,7 @@ def _empty(inp: CampaignInputs, missing: list[Missing], assumptions: list[str]) 
         co2eq_net_tCO2eq_ha=None, gpp_ci95_pct=None, delta_soc_ci95_tC_ha=None, end_state=None,
         initial_state_source=inp.initial_state_source, cycles=(), months=(),
         missing=tuple(missing), assumptions=tuple(assumptions),
-        inputs_summary=_inputs_summary(inp, [], None, [], None, None),
+        inputs_summary=_inputs_summary(inp, [], None, [], irrigated_value, irrigated_source),
     )
 
 
@@ -121,6 +131,10 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
             continue
         if c.start > through or (c.end is not None and c.end < p_start):
             continue
+        if c.end is not None and c.end <= through and c.end_provenance in _UNCONFIRMED_END:
+            missing.append(Missing("cycle_end", f"{c.crop_id}: planned end {c.end.isoformat()} passed without "
+                                   "a recorded end", "cycle_open"))
+            c = replace(c, end=None)
         if c.start_provenance == "planned":
             missing.append(Missing("cycle_start", f"{c.crop_id}: start is a planned date, not confirmed",
                                    "uses_planned_date"))
@@ -280,14 +294,7 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
 
     # -- Tier 3: N2O and NEE ---------------------------------------------------
     nee = necb = n2o = net = None
-    # Irrigation: recorded operations first, the declaration only without records.
-    period_irrigations = [i for i in inp.irrigations if p_start <= i.day <= through]
-    if inp.declared.irrigated is not None and not period_irrigations:
-        irrigated_value, irrigated_source = inp.declared.irrigated, "declared"
-    elif period_irrigations:
-        irrigated_value, irrigated_source = True, "operations"
-    else:
-        irrigated_value, irrigated_source = None, None  # unknown: no record, no declaration
+    irrigated_value, irrigated_source = _irrigation(inp, p_start, through)
     if rh is not None and npp_t is not None:
         n_syn, n_org, n_gaps = _nitrogen(inp, through)
         missing.extend(n_gaps)
@@ -326,6 +333,15 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
         cycles=tuple(cycle_results), months=tuple(months), missing=tuple(missing),
         assumptions=tuple(assumptions), inputs_summary=summary,
     )
+
+
+def _irrigation(inp: CampaignInputs, first: date, last: date) -> tuple[Optional[bool], Optional[str]]:
+    """Recorded irrigation operations first, the declaration only without records; else unknown."""
+    if any(first <= i.day <= last for i in inp.irrigations):
+        return True, "operations"
+    if inp.declared.irrigated is not None:
+        return inp.declared.irrigated, "declared"
+    return None, None
 
 
 # Roles that are not harvested: without a harvest record their biomass stays on the field.
@@ -444,10 +460,14 @@ def _delta_soc_ci(start: RothCState, months: list[RothCMonth], clay: float, dept
 
 
 def _vi_summary(series, first: date, last: date) -> Optional[dict]:
+    if last < first:  # 1 January: no period yet
+        return None
     dates = sorted({d for d, _ in series if first - timedelta(days=MAX_VI_GAP_DAYS) <= d <= last + timedelta(days=MAX_VI_GAP_DAYS)})
     if not dates:
         return None
-    gaps = [(b - a).days for a, b in zip(dates, dates[1:])]
+    # Longest stretch of the period without a scene, the period edges included.
+    points = sorted({first, last} | {d for d in dates if first <= d <= last})
+    gaps = [(b - a).days for a, b in zip(points, points[1:])]
     return {"scenes": len(dates), "first": dates[0].isoformat(), "last": dates[-1].isoformat(),
             "max_gap_days": max(gaps) if gaps else None}
 
@@ -462,7 +482,7 @@ def _inputs_summary(inp: CampaignInputs, period_days: list, through: Optional[da
         if w is not None:
             by_source[w.source or "unknown"] += 1
     first = date(inp.year, 1, 1)
-    last = through or first
+    last = through or min(date(inp.year, 12, 31), inp.today - timedelta(days=1))
     vi = {}
     for name, series in (("NDVI", inp.ndvi), ("OSAVI", inp.osavi)):
         summary = _vi_summary(series, first, last)
@@ -479,6 +499,8 @@ def _inputs_summary(inp: CampaignInputs, period_days: list, through: Optional[da
         ops.append({"type": "baling", "date": b.day.isoformat()})
     for i in inp.irrigations:
         ops.append({"type": "irrigation", "date": i.day.isoformat(), "water_mm": i.water_mm})
+    # Only the operations of the period the balance covers.
+    ops = [o for o in ops if first.isoformat() <= o["date"] <= last.isoformat()]
     ops.sort(key=lambda o: (o["date"], o["type"]))
     soil = None
     if inp.soil is not None:

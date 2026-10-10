@@ -98,7 +98,8 @@
     "complete_campaign": "Oraindik ez dago kanpaina osorik kalkulatuta",
     "cover_mismatch": "NDVIak landaredia ikusten du labore-ziklorik gabeko egunetan",
     "osavi": "OSAVI irudiak falta dira labore zurkarakoetan: kalkulatu OSAVI Landaredian",
-    "cycle_lifecycle": "Bizi-zikloa erregistratu gabe: espezieagatik iraunkorra dela suposatzen da"
+    "cycle_lifecycle": "Bizi-zikloa erregistratu gabe: espezieagatik iraunkorra dela suposatzen da",
+    "cycle_end": "Planifikatutako amaiera-data igaro da, amaierarik erregistratu gabe"
   },
   "effect": {
     "no_balance": "Ezin da kanpaina kalkulatu",
@@ -111,7 +112,8 @@
     "bare_soil_assumed": "Lur biluzi gisa kontatzen da",
     "no_projection": "Proiekziorik ez",
     "cover_uncertain": "Lurzoruaren estaldura ziurgabea: berrikusi labore-zikloak",
-    "assumed": "Adierazitako hipotesi bat erabiltzen da"
+    "assumed": "Adierazitako hipotesi bat erabiltzen da",
+    "cycle_open": "Zikloa irekita dago amaiera erregistratu arte"
   },
   "gap": {
     "baseline_soil_sampling": "Hasierako lurzoru-laginketa",
@@ -119,7 +121,8 @@
     "third_party_verification": "Egiaztapen independentea",
     "baseline_not_defined": "Oinarri-lerroa definitu gabe",
     "tier3_not_reached": "N₂O balantzea (3. maila) ez da lortu",
-    "open_campaign": "Azken kanpaina irekita dago oraindik"
+    "open_campaign": "Azken kanpaina irekita dago oraindik",
+    "baseline_incomplete": "Oinarri-lerroak ez du COS aldaketarik kanpainaren batean"
   },
   "export_vm0042": "VM0042 Esportatu",
   "export_gold_standard": "Gold Standard Esportatu",
@@ -143,7 +146,7 @@
   "declare_hint": "Utzi hutsik ez dakizuna: kalkuluak hemen adierazten duzuna bakarrik erabiltzen du.",
   "partial_pct": "partziala: egunen % {{pct}}",
   "hint_export": "Uztak pisua eta hezetasuna erregistratuta ez baditu bakarrik",
-  "hint_removal": "Adibidez, fardo-lastoa",
+  "hint_removal": "Adibidez, fardo-lastoa. Fardoketa erregistratuta badago bakarrik aplikatzen da",
   "hint_n": "Eragiketetan ongarritzerik erregistratuta ez badago bakarrik",
   "hint_irrigation": "Eragiketetan ureztatzerik erregistratuta ez badago bakarrik",
   "recorded_elsewhere": "Lurra lantzea, estalkiak eta meteorologia ez dira hemen adierazten: landa-eragiketetatik, labore-zikloetatik eta lurzatiaren meteotik datoz.",
@@ -202,5 +205,11 @@
       "roller_crimper": "aizto-arrabola"
     },
     "irrigation_unknown": "ureztatzerik ez erregistratuta ez adierazita (lehorreko gisa tratatzen da)"
+  },
+  "baseline_incomplete": "Oinarri-lerro osatugabea: COS aldaketa falta da {{years}} urtean",
+  "assumption": {
+    "repeat_reference": "{{year}} urteko klima eta maneiua urtero errepikatzen dira",
+    "no_baseline": "Oinarri-lerrorik ez: egungo maneiua bakarrik proiektatzen da",
+    "baseline_same_climate": "Oinarri-lerroa: {{year}} urteko maneiua klima berarekin"
   }
 }

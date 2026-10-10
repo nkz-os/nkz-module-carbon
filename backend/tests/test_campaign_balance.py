@@ -306,3 +306,39 @@ def test_missing_osavi_is_named_as_osavi():
     cyc = CycleSpan("o1", "OLVEU", "main_crop", "perennial", date(2026, 1, 1), None, "declared", None, None, olive)
     b = compute_campaign_balance(_inp(cycles=(cyc,), harvests=()))   # NDVI present, OSAVI absent
     assert "osavi" in _items(b) and "ndvi" not in _items(b)
+
+
+def test_passed_planned_end_keeps_the_cycle_open():
+    planned = replace(_cycle(date(2026, 3, 1), date(2026, 7, 31)), end_provenance="planned")
+    b = compute_campaign_balance(_inp(cycles=(planned,), harvests=()))
+    assert "cycle_end" in _items(b) and "harvest_export" not in _items(b)
+    assert next(m for m in b.missing if m.item == "cycle_end").effect == "cycle_open"
+    # still covering the soil after the planned date, no closure
+    assert b.cover_days == (date(2026, 9, 30) - date(2026, 3, 1)).days + 1
+    assert b.cycles[0].exported_c_tC_ha is None
+
+
+def test_confirmed_end_still_closes_the_cycle():
+    b = compute_campaign_balance(_inp())
+    assert "cycle_end" not in _items(b) and b.cycles[0].exported_c_tC_ha == pytest.approx(1.2)
+
+
+def test_operations_after_computed_through_are_not_listed():
+    late = (FertilizationEvent(date(2026, 10, 2), 30.0, False, "operation"),)
+    b = compute_campaign_balance(_inp(fertilizations=late))
+    assert all(o["date"] <= "2026-09-30" for o in b.inputs_summary["operations"])
+
+
+def test_empty_balance_still_reports_recorded_irrigation():
+    from app.services.campaign_types import IrrigationEvent
+    b = compute_campaign_balance(_inp(today=date(2026, 1, 20), weather=_weather(date(2026, 1, 1), date(2026, 1, 19)),
+                                      irrigations=(IrrigationEvent(date(2026, 1, 10), 20.0),)))
+    assert b.tier == 0
+    assert b.inputs_summary["irrigated"] == {"value": True, "source": "operations"}
+
+
+def test_vi_gap_counts_the_period_edges():
+    scenes = ((date(2026, 3, 1), 0.6), (date(2026, 3, 11), 0.6))
+    s = compute_campaign_balance(_inp(ndvi=scenes)).inputs_summary["vi"]["NDVI"]
+    # 1 Jan -> 1 Mar = 59 days; 11 Mar -> 30 Sep = 203 days
+    assert s["max_gap_days"] == (date(2026, 9, 30) - date(2026, 3, 11)).days

@@ -73,6 +73,7 @@ def build_monitoring_report(
     rows = sorted(rows, key=lambda r: r["campaign_label"])
     campaigns = []
     reductions: Optional[float] = 0.0 if baseline else None
+    incomplete_years: list[int] = []
     for r in rows:
         year = r["campaign_label"]
         entry = {
@@ -85,6 +86,7 @@ def build_monitoring_report(
             entry["baseline_delta_soc_tC_ha"] = b_delta
             if b_delta is None or entry["delta_soc_tC_ha"] is None:
                 reductions = None
+                incomplete_years.append(year)
             elif reductions is not None:
                 reductions += (entry["delta_soc_tC_ha"] - b_delta) * C_TO_CO2
                 b_n2o, p_n2o = baseline.get("n2o_by_year", {}).get(year), entry["n2o_tCO2eq_ha"]
@@ -96,6 +98,8 @@ def build_monitoring_report(
     gaps = list(CERTIFICATION_GAPS)
     if baseline is None:
         gaps.append("baseline_not_defined")
+    elif incomplete_years:
+        gaps.append("baseline_incomplete")
     if not tiers or min(tiers) < 3:
         gaps.append("tier3_not_reached")
     if rows and not is_complete(rows[-1]):
@@ -122,6 +126,8 @@ def build_monitoring_report(
         "total_co2eq_net_tCO2eq_ha": sum(nets) if rows and None not in nets else None,
         "baseline_reference_year": baseline["reference_year"] if baseline else None,
         "net_emission_reductions_tCO2eq_ha": reductions,
+        # Campaigns where the project or the replayed baseline has no SOC change.
+        "baseline_incomplete_years": incomplete_years,
         "tier": min(tiers) if tiers else 0,
         "data_sources": sorted({s for r in rows for s in (r.get("data_sources") or [])}),
         "assumptions": sorted({a for r in rows for a in (r.get("assumptions") or [])}),

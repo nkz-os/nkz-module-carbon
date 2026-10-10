@@ -335,7 +335,7 @@ function SoilTab({ row, t }: { row: CampaignRow | null; t: (key: string) => stri
   );
 }
 
-function ProjectionTab({ projection, t }: { projection: ProjectionData | null; t: (key: string) => string }) {
+function ProjectionTab({ projection, t }: { projection: ProjectionData | null; t: (key: string, options?: Record<string, unknown>) => string }) {
   if (!projection || projection.project_soc.length === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -354,7 +354,14 @@ function ProjectionTab({ projection, t }: { projection: ProjectionData | null; t
         <div>
           <SectionLabel text={t('assumptions')} />
           <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: colors.textSecondary }}>
-            {projection.assumptions.map((a) => <li key={a}>{a}</li>)}
+            {projection.assumptions.map((a, i) => {
+              const code = projection.assumption_codes?.[i];
+              return (
+                <li key={a}>
+                  {code ? t(`assumption.${code.code}`, { year: code.year, defaultValue: a }) : a}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

@@ -172,3 +172,10 @@ def test_management_form_declares_only_what_the_platform_does_not_record():
 def test_sensor_listing_route_is_gone():
     from app.api import assessments
     assert not any(r.path.endswith("/sensors/available") for r in assessments.router.routes)
+
+
+def test_calculate_unknown_parcel_is_404(client, monkeypatch):
+    from app.services.campaign_runner import ParcelNotFound
+    monkeypatch.setattr(api, "run_campaign", AsyncMock(side_effect=ParcelNotFound("no AgriParcel x")))
+    r = client.post("/api/carbon/parcels/x/campaigns/2026/calculate", headers=H)
+    assert r.status_code == 404

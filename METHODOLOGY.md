@@ -54,8 +54,9 @@ NDVI is interpolated linearly between acquisitions, never extrapolated, and not 
 A day without NDVI, without weather or for a crop without calibrated parameters is not computed; the share of
 cycle days computed is reported as `tier1Coverage`. When two cycles overlap, the one started last produces.
 
-Crop parameters come from BioOrchestrator when it returns LUE, fAPAR coefficients and root fraction together,
-otherwise from the calibrated table below. Species not listed have no calibration and are reported as missing.
+Crop parameters come from BioOrchestrator when it returns LUE, fAPAR coefficients and root fraction together
+and within plausible ranges (LUE 0–5 gC/MJ, fAPAR slope 0–5, intercept −1–1, root fraction 0.07–0.9: the root
+share must cover the exudates), otherwise from the calibrated table below. Species not listed have no calibration and are reported as missing.
 
 | Crop | LUE [gC/MJ] | fAPAR a, b | Index | Root fraction |
 |------|-------------|------------|-------|---------------|
@@ -85,7 +86,8 @@ exported = harvested_weight · (1 − moisture) · 0.45 / area      [tC/ha]
 
 Without weight or moisture, the declared harvest-export fraction is used; without either, the export is
 missing and Tier 2 is not computed. Baling removes the declared share of the remaining residue. A cover crop
-without a harvest returns all its biomass. Perennial crops are reported without Tier 2: pruning and litter
+without a harvest returns all its biomass. A planned end date that has passed without a recorded end does not
+close the cycle: it stays open and is reported, so no harvest or bare days are invented. Perennial crops are reported without Tier 2: pruning and litter
 inputs are not known.
 
 Organic amendments: the carbon declared by the farmer (tC/ha/yr), placed in the months of the organic

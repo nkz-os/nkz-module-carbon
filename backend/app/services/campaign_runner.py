@@ -12,14 +12,16 @@ from typing import Any, Optional
 from app.common.orion import get_orion_client
 from app.db.database import insert_carbon_calculation
 from app.ngsild.campaign_entities import build_campaign_assessment, build_campaign_stock, stock_state
-from app.platform.crop_client import carbon_species_key, canonical_parcel_urn, fetch_parcel_coordinates, parcel_short
+from app.platform.crop_client import (
+    carbon_species_key, canonical_parcel_urn, fetch_parcel_coordinates, fetch_parcel_entity, parcel_short,
+)
 from app.platform.crop_cycles_client import fetch_cycles
 from app.platform.daily_weather_client import fetch_daily_weather
 from app.platform.eo_ndvi_client import fetch_vi_series
 from app.platform.errors import SourceUnavailable
 from app.platform.operations_client import fetch_operations, fetch_parcel_area_ha
 from app.platform.soil_client import fetch_soil_init
-from app.services.campaign_balance import ENGINE_VERSION, compute_campaign_balance
+from app.services.campaign_balance import ENGINE_VERSION, compute_campaign_balance, computed_through
 from app.services.campaign_types import (
     NO_DECLARED_MANAGEMENT, CampaignBalance, CampaignInputs, CycleSpan, DeclaredManagement, Missing,
     OperationsRead,
@@ -36,6 +38,12 @@ logger = logging.getLogger(__name__)
 _WEATHER_CHUNK_DAYS = 366
 # Cycles started earlier than this before 1 January are not followed back further.
 _MAX_LOOKBACK_DAYS = 400
+# First full year of Sentinel-2 data: without a vegetation index there is no plant production.
+EARLIEST_CAMPAIGN_YEAR = 2016
+
+
+class ParcelNotFound(LookupError):
+    """The tenant has no such AgriParcel: nothing is computed or written."""
 
 
 def _assessment_id(tenant_id: str, short: str, year: int) -> str:
@@ -161,7 +169,15 @@ async def run_campaign(
     today = today or date.today()
     if year > today.year:
         raise ValueError(f"campaign {year} has not started")
+    if year < EARLIEST_CAMPAIGN_YEAR:
+        raise ValueError(f"campaign {year} is before {EARLIEST_CAMPAIGN_YEAR}, the first full year of Sentinel-2 data")
     urn, short = canonical_parcel_urn(parcel_id), parcel_short(parcel_id)
+    try:
+        parcel = await fetch_parcel_entity(urn, tenant_id)
+    except Exception as exc:  # noqa: BLE001 — unknown, not absent
+        raise SourceUnavailable(f"parcel read failed: {exc}") from exc
+    if parcel is None:
+        raise ParcelNotFound(f"no AgriParcel {urn}")
     p_start = date(year, 1, 1)
     through_max = min(date(year, 12, 31), today - timedelta(days=1))
 
@@ -196,12 +212,14 @@ async def run_campaign(
     ndvi, osavi = vi_series.get("NDVI", []), vi_series.get("OSAVI", [])
 
     lat, lon = coords if coords else (None, None)
+    # Cycles that start after the last complete month are not in the balance: no params to resolve.
+    through = computed_through(year, today, weather)
     params_by_species: dict[str, tuple] = {}
     missing: list[Missing] = list(soil_missing) + list(ops.missing)
     cycles: list[CycleSpan] = []
     for s in spans:
         species = str(s.get("species") or "")
-        if s["_start"] > through_max:
+        if through is None or s["_start"] > through:
             continue  # not started inside the computed period: nothing to resolve yet
         if species not in params_by_species:
             params_by_species[species] = await resolve_crop_params(species, lat, lon)
@@ -234,7 +252,10 @@ async def run_campaign(
         missing_in=tuple(missing), osavi=tuple(osavi), irrigations=ops.irrigations,
     ))
 
-    sources = ["weather_api_daily", "crop_cycles", "eo_ndvi", "field_operations"]
+    # NDVI always contrasts the cover; each other index is named when a cycle was calibrated on it.
+    vi_used = sorted({c.params.vi_type for c in cycles if c.params is not None} - {"NDVI"})
+    sources = ["weather_api_daily", "crop_cycles", "eo_ndvi"] + [f"eo_{v.lower()}" for v in vi_used] + \
+        ["field_operations"]
     if soil is not None:
         sources.append(f"soil_{soil.source}")
     sources += sorted({f"crop_params_{p.source}" for p, _ in params_by_species.values() if p is not None})
@@ -328,7 +349,8 @@ async def _start_state(tenant_id: str, short: str, row: dict) -> Optional[RothCS
 
 
 def _usable(row: dict) -> bool:
-    return (row.get("data_tier") or 0) >= 2 and row.get("soil_clay_pct") is not None and bool(row.get("monthly_balance"))
+    return ((row.get("data_tier") or 0) >= 2 and row.get("soil_clay_pct") is not None
+            and row.get("soil_depth_cm") is not None and bool(row.get("monthly_balance")))
 
 
 async def projection(tenant_id: str, parcel_id: str, years: int = 20) -> dict:
@@ -336,7 +358,14 @@ async def projection(tenant_id: str, parcel_id: str, years: int = 20) -> dict:
     rows = await list_campaigns(tenant_id, parcel_id)
     ref = next((r for r in reversed(rows) if _usable(r) and is_complete(r)), None)
     out = {"entity_id": short, "projection_years": years, "reference_year": None, "baseline_soc": [],
-           "project_soc": [], "annual_delta_tC_ha_yr": [], "assumptions": [], "missing": []}
+           "project_soc": [], "annual_delta_tC_ha_yr": [], "assumptions": [], "assumption_codes": [],
+           "missing": []}
+
+    def assume(text: str, code: str, **params):
+        # text for API readers; code + params for the UI to translate
+        out["assumptions"].append(text)
+        out["assumption_codes"].append({"code": code, **params})
+
     if ref is None:
         out["missing"].append({"item": "complete_campaign", "reason": "no complete campaign with a soil balance",
                                "effect": "no_projection"})
@@ -347,19 +376,20 @@ async def projection(tenant_id: str, parcel_id: str, years: int = 20) -> dict:
                                "effect": "no_projection"})
         return out
     start, _ = stock_state(stock)
-    clay, depth = float(ref["soil_clay_pct"]), float(ref.get("soil_depth_cm") or 30.0)
+    clay, depth = float(ref["soil_clay_pct"]), float(ref["soil_depth_cm"])
     climate = months_from_row(ref)
     out["reference_year"] = ref["campaign_label"]
     out["project_soc"] = project_soc(start, climate, clay, depth, years)
-    out["assumptions"].append(f"climate and management of {ref['campaign_label']} repeated every year")
+    assume(f"climate and management of {ref['campaign_label']} repeated every year", "repeat_reference",
+           year=ref["campaign_label"])
     b_year = await _baseline_year(tenant_id, short)
     b_row = next((r for r in rows if r["campaign_label"] == b_year and _usable(r) and is_complete(r)), None)
     if b_row is None:
-        out["assumptions"].append("no baseline defined: only the current management is projected")
+        assume("no baseline defined: only the current management is projected", "no_baseline")
     else:
         out["baseline_soc"] = project_soc(start, combine_months(climate, months_from_row(b_row)), clay, depth, years)
         out["annual_delta_tC_ha_yr"] = [p - b for p, b in zip(out["project_soc"], out["baseline_soc"])]
-        out["assumptions"].append(f"baseline: management of {b_year} under the same climate")
+        assume(f"baseline: management of {b_year} under the same climate", "baseline_same_climate", year=b_year)
     return out
 
 
@@ -384,7 +414,7 @@ async def monitoring_report(tenant_id: str, parcel_id: str, standard: str,
                 deltas[r["campaign_label"]] = None
                 continue
             months = combine_months(months_from_row(r), inputs)
-            clay, depth = float(r["soil_clay_pct"]), float(r.get("soil_depth_cm") or 30.0)
+            clay, depth = float(r["soil_clay_pct"]), float(r["soil_depth_cm"])
             deltas[r["campaign_label"]] = run_months(start, months, clay, depth).final.pools.total - start.pools.total
             if is_complete(r):
                 n2o[r["campaign_label"]] = b_row.get("n2o_emissions")

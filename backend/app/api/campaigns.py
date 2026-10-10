@@ -21,7 +21,9 @@ from app.db.database import list_tenants_with_module
 from app.platform.crop_client import canonical_parcel_urn
 from app.platform.errors import SourceUnavailable
 from app.ngsild.campaign_entities import stock_state
-from app.services.campaign_runner import get_campaign, get_campaign_stock, list_campaigns, run_campaign
+from app.services.campaign_runner import (
+    ParcelNotFound, get_campaign, get_campaign_stock, list_campaigns, run_campaign,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +82,8 @@ async def calculate_campaign(
         row = await _row_with_pools(auth.tenant_id, entity_id, year)
     except SourceUnavailable as exc:
         raise _unavailable(exc)
+    except ParcelNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     if row is None:  # written a moment ago: a broker that loses it is a broker fault

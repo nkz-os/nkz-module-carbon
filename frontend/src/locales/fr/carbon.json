@@ -98,7 +98,8 @@
     "complete_campaign": "Aucune campagne complète calculée",
     "cover_mismatch": "Le NDVI voit de la végétation sur des jours sans cycle de culture",
     "osavi": "Scènes OSAVI manquantes sur des jours de culture ligneuse : calculez OSAVI dans Végétation",
-    "cycle_lifecycle": "Cycle de vie non enregistré : pérenne déduit de l'espèce"
+    "cycle_lifecycle": "Cycle de vie non enregistré : pérenne déduit de l'espèce",
+    "cycle_end": "La date de fin prévue est passée sans fin enregistrée"
   },
   "effect": {
     "no_balance": "La campagne ne peut pas être calculée",
@@ -111,7 +112,8 @@
     "bare_soil_assumed": "Compté comme sol nu",
     "no_projection": "Pas de projection",
     "cover_uncertain": "Couverture du sol incertaine : vérifiez les cycles de culture",
-    "assumed": "Une hypothèse déclarée est utilisée"
+    "assumed": "Une hypothèse déclarée est utilisée",
+    "cycle_open": "Le cycle reste ouvert jusqu'à l'enregistrement de sa fin"
   },
   "gap": {
     "baseline_soil_sampling": "Échantillonnage du sol au départ",
@@ -119,7 +121,8 @@
     "third_party_verification": "Vérification indépendante",
     "baseline_not_defined": "Référence non définie",
     "tier3_not_reached": "Bilan N₂O (niveau 3) non atteint",
-    "open_campaign": "La dernière campagne est encore ouverte"
+    "open_campaign": "La dernière campagne est encore ouverte",
+    "baseline_incomplete": "Référence sans variation de COS pour une campagne"
   },
   "export_vm0042": "Exporter VM0042",
   "export_gold_standard": "Exporter Gold Standard",
@@ -143,7 +146,7 @@
   "declare_hint": "Laissez vide ce que vous ne savez pas : le calcul n'utilise que ce que vous déclarez ici.",
   "partial_pct": "partiel : {{pct}} % des jours",
   "hint_export": "Seulement si la récolte n'a ni poids ni humidité enregistrés",
-  "hint_removal": "Par exemple, paille pressée",
+  "hint_removal": "Par exemple, paille pressée. Ne s'applique que si un pressage est enregistré",
   "hint_n": "Seulement si aucune fertilisation n'est enregistrée",
   "hint_irrigation": "Seulement si aucune irrigation n'est enregistrée",
   "recorded_elsewhere": "Le travail du sol, les couverts et la météo ne se déclarent pas ici : ils viennent des opérations, des cycles de culture et de la météo de la parcelle.",
@@ -202,5 +205,11 @@
       "roller_crimper": "rouleau faca"
     },
     "irrigation_unknown": "aucune irrigation enregistrée ni déclarée (traité en sec)"
+  },
+  "baseline_incomplete": "Référence incomplète : variation de COS manquante en {{years}}",
+  "assumption": {
+    "repeat_reference": "Climat et conduite de {{year}} répétés chaque année",
+    "no_baseline": "Aucune référence définie : seule la conduite actuelle est projetée",
+    "baseline_same_climate": "Référence : conduite de {{year}} sous le même climat"
   }
 }

@@ -106,9 +106,11 @@ const CarbonMRVExport: React.FC<CarbonMRVExportProps> = ({ entityId, years }) =>
             <MetricItem label={t('co2eq_net')} value={`${fmtSigned(report.total_co2eq_net_tCO2eq_ha)} ${t('units.tCO2eq_ha')}`} />
             <MetricItem
               label={t('net_reductions')}
-              value={report.net_emission_reductions_tCO2eq_ha === null
-                ? t('baseline_missing')
-                : `${fmt(report.net_emission_reductions_tCO2eq_ha)} ${t('units.tCO2eq_ha')}`}
+              value={report.net_emission_reductions_tCO2eq_ha !== null
+                ? `${fmt(report.net_emission_reductions_tCO2eq_ha)} ${t('units.tCO2eq_ha')}`
+                : report.baseline_reference_year === null
+                  ? t('baseline_missing')
+                  : t('baseline_incomplete', { years: (report.baseline_incomplete_years ?? []).join(', ') })}
             />
             <MetricItem label={t('tier')} value={`T${report.tier}`} />
           </div>

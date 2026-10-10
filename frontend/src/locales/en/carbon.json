@@ -98,7 +98,8 @@
     "complete_campaign": "No complete campaign computed yet",
     "cover_mismatch": "NDVI shows vegetation on days without a crop cycle",
     "osavi": "OSAVI scenes missing on woody-crop days: compute OSAVI in Vegetation",
-    "cycle_lifecycle": "Lifecycle not recorded: perennial inferred from the species"
+    "cycle_lifecycle": "Lifecycle not recorded: perennial inferred from the species",
+    "cycle_end": "Planned end date has passed without a recorded end"
   },
   "effect": {
     "no_balance": "The campaign cannot be computed",
@@ -111,7 +112,8 @@
     "bare_soil_assumed": "Counted as bare soil",
     "no_projection": "No projection",
     "cover_uncertain": "Soil cover uncertain: check the crop cycles",
-    "assumed": "A declared assumption is used"
+    "assumed": "A declared assumption is used",
+    "cycle_open": "The cycle stays open until its end is recorded"
   },
   "gap": {
     "baseline_soil_sampling": "Soil sampling at the start",
@@ -119,7 +121,8 @@
     "third_party_verification": "Independent verification",
     "baseline_not_defined": "Baseline not defined",
     "tier3_not_reached": "N₂O balance (tier 3) not reached",
-    "open_campaign": "The last campaign is still open"
+    "open_campaign": "The last campaign is still open",
+    "baseline_incomplete": "Baseline without SOC change in some campaign"
   },
   "export_vm0042": "Export VM0042",
   "export_gold_standard": "Export Gold Standard",
@@ -143,7 +146,7 @@
   "declare_hint": "Leave empty what you do not know: the balance only uses what you declare here.",
   "partial_pct": "partial: {{pct}} % of days",
   "hint_export": "Only if the harvest has no recorded weight and moisture",
-  "hint_removal": "For example, baled straw",
+  "hint_removal": "For example, baled straw. Applies only when a baling is recorded",
   "hint_n": "Only if no fertilization is recorded in field operations",
   "hint_irrigation": "Only if no irrigation is recorded in field operations",
   "recorded_elsewhere": "Tillage, cover crops and weather are not declared here: they come from field operations, crop cycles and the parcel weather.",
@@ -202,5 +205,11 @@
       "roller_crimper": "roller crimper"
     },
     "irrigation_unknown": "no irrigation recorded or declared (treated as rainfed)"
+  },
+  "baseline_incomplete": "Incomplete baseline: SOC change missing in {{years}}",
+  "assumption": {
+    "repeat_reference": "Climate and management of {{year}} repeated every year",
+    "no_baseline": "No baseline defined: only the current management is projected",
+    "baseline_same_climate": "Baseline: management of {{year}} under the same climate"
   }
 }

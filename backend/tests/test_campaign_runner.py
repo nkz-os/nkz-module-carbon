@@ -77,9 +77,13 @@ def env(monkeypatch):
     async def params(species, lat, lon):
         return P, []
 
+    async def parcel(pid, tenant):
+        return {"id": cr.canonical_parcel_urn(pid), "type": "AgriParcel"}
+
     for name, fn in [("fetch_cycles", cycles), ("fetch_daily_weather", weather), ("fetch_vi_series", ndvi),
                      ("fetch_soil_init", soil), ("fetch_operations", ops), ("fetch_parcel_area_ha", area),
-                     ("fetch_parcel_coordinates", coords), ("resolve_crop_params", params)]:
+                     ("fetch_parcel_coordinates", coords), ("resolve_crop_params", params),
+                     ("fetch_parcel_entity", parcel)]:
         monkeypatch.setattr(cr, name, fn)
     monkeypatch.setattr(cr, "get_orion_client", lambda: store)
     return store, calls
@@ -342,3 +346,79 @@ async def test_woody_species_without_lifecycle_is_treated_as_perennial(env, monk
     items = {m.item for m in b.missing}
     assert "perennial_litter" in items and "cycle_lifecycle" in items
     assert b.tier <= 1 and b.co2eq_net_tCO2eq_ha is None
+
+
+@pytest.mark.asyncio
+async def test_unknown_parcel_writes_nothing(env, monkeypatch):
+    store, _ = env
+
+    async def none(pid, tenant):
+        return None
+    monkeypatch.setattr(cr, "fetch_parcel_entity", none)
+    with pytest.raises(cr.ParcelNotFound):
+        await cr.run_campaign("t1", "nope", 2026, today=TODAY)
+    assert store.entities == {}
+
+
+@pytest.mark.asyncio
+async def test_year_before_sentinel2_rejected(env):
+    with pytest.raises(ValueError):
+        await cr.run_campaign("t1", "abc", cr.EARLIEST_CAMPAIGN_YEAR - 1, today=TODAY)
+
+
+@pytest.mark.asyncio
+async def test_cycle_starting_after_computed_month_does_not_report_its_params(env, monkeypatch):
+    # starts on 3 Oct: after computed_through (30 Sep) but before yesterday (9 Oct)
+    async def cycles(urn, tenant, at, client=None):
+        return [_cycle_dict("2026-01-01", "2026-06-30"), {**_cycle_dict("2026-10-03", None, species="QUCHX"),
+                                                          "crop_id": "urn:ngsi-ld:AgriCrop:c2"}]
+    asked = []
+
+    async def params(species, lat, lon):
+        asked.append(species)
+        if species == "QUCHX":
+            from app.services.campaign_types import Missing
+            return None, [Missing("crop_params", f"{species}: none", "tier1_unavailable")]
+        return P, []
+    monkeypatch.setattr(cr, "fetch_cycles", cycles)
+    monkeypatch.setattr(cr, "resolve_crop_params", params)
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    assert asked == ["TRZAX"] and "crop_params" not in {m.item for m in b.missing}
+
+
+@pytest.mark.asyncio
+async def test_sources_name_the_index_each_cycle_used(env, monkeypatch):
+    store, _ = env
+    from app.services.campaign_types import CropParams
+    olive = CropParams(lue_gC_MJ=0.9, fapar_a=1.40, fapar_b=-0.24, vi_type="OSAVI", root_fraction=0.20, source="table")
+
+    async def params(species, lat, lon):
+        return olive, []
+    monkeypatch.setattr(cr, "resolve_crop_params", params)
+    await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    row = cr.entity_to_dict(store.entities[("t1", "urn:ngsi-ld:CarbonAssessment:t1:abc:2026")])
+    assert "eo_osavi" in row["data_sources"] and "eo_ndvi" in row["data_sources"]  # NDVI still contrasts the cover
+
+
+@pytest.mark.asyncio
+async def test_rows_without_soil_depth_are_not_projected(env):
+    store, _ = env
+    await cr.run_campaign("t1", "abc", 2025, today=TODAY)
+    e = store.entities[("t1", "urn:ngsi-ld:CarbonAssessment:t1:abc:2025")]
+    e.pop("soilDepthCm", None)
+    p = await cr.projection("t1", "abc", years=3)
+    assert p["project_soc"] == [] and p["missing"][0]["item"] == "complete_campaign"
+
+
+@pytest.mark.asyncio
+async def test_projection_assumptions_carry_codes_for_translation(env):
+    store, _ = env
+    await cr.run_campaign("t1", "abc", 2025, today=TODAY)
+    p = await cr.projection("t1", "abc", years=2)
+    assert p["assumption_codes"] == [{"code": "repeat_reference", "year": 2025}, {"code": "no_baseline"}]
+    store.entities[("t1", "urn:ngsi-ld:BaselineScenario:t1:abc")] = {
+        "id": "urn:ngsi-ld:BaselineScenario:t1:abc", "type": "BaselineScenario",
+        "validFrom": {"type": "Property", "value": "2025-01-01"}}
+    p = await cr.projection("t1", "abc", years=2)
+    assert p["assumption_codes"][1] == {"code": "baseline_same_climate", "year": 2025}
+    assert len(p["assumption_codes"]) == len(p["assumptions"])

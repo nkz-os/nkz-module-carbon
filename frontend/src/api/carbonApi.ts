@@ -123,6 +123,8 @@ export interface ProjectionData {
   project_soc: number[];
   annual_delta_tC_ha_yr: number[];
   assumptions: string[];
+  // Same assumptions as codes (+ params) for translation; absent from older backends.
+  assumption_codes?: Array<{ code: string; year?: number }>;
   missing: MissingItem[];
 }
 
@@ -164,6 +166,8 @@ export interface MRVReport {
   total_co2eq_net_tCO2eq_ha: number | null;
   baseline_reference_year: number | null;
   net_emission_reductions_tCO2eq_ha: number | null;
+  // Campaigns where the project or the replayed baseline lacks a SOC change.
+  baseline_incomplete_years?: number[];
   tier: number;
   certification_gaps: string[];
   assumptions: string[];

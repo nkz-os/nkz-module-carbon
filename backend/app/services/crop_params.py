@@ -37,6 +37,20 @@ WOODY_SPECIES = {"olive", "vineyard", "almond", "citrus"}
 # Indices the platform publishes per acquisition (EOProduct).
 AVAILABLE_VI = {"NDVI", "OSAVI"}
 
+# Plausible ranges for parameters received from BioOrchestrator; outside them a value is
+# a data error, not a calibration. The root share must cover the exudates the balance
+# takes from it (campaign_balance.EXUDATE_FRACTION), or root inputs turn negative.
+_LUE_RANGE = (0.0, 5.0)          # gC/MJ PAR, exclusive lower bound
+_FAPAR_A_RANGE = (0.0, 5.0)      # slope of fAPAR on the index, exclusive lower bound
+_FAPAR_B_RANGE = (-1.0, 1.0)
+_ROOT_FRACTION_RANGE = (0.07, 0.9)
+
+
+def _plausible(lue: float, a: float, b: float, root: float) -> bool:
+    return (_LUE_RANGE[0] < lue <= _LUE_RANGE[1] and _FAPAR_A_RANGE[0] < a <= _FAPAR_A_RANGE[1]
+            and _FAPAR_B_RANGE[0] <= b <= _FAPAR_B_RANGE[1]
+            and _ROOT_FRACTION_RANGE[0] <= root <= _ROOT_FRACTION_RANGE[1])
+
 
 async def resolve_crop_params(
     species: str,
@@ -46,7 +60,13 @@ async def resolve_crop_params(
     key = carbon_species_key(species or "")
     bio = await fetch_phenology_params(phenology_species_param(species or ""), lat=lat, lon=lon) if species else None
     params: Optional[CropParams] = None
-    if bio and None not in (bio.lue_gC_per_MJ, bio.fapar_a, bio.fapar_b, bio.root_fraction):
+    complete = bio and None not in (bio.lue_gC_per_MJ, bio.fapar_a, bio.fapar_b, bio.root_fraction)
+    if complete and not _plausible(float(bio.lue_gC_per_MJ), float(bio.fapar_a), float(bio.fapar_b),
+                                   float(bio.root_fraction)):
+        logger.warning("implausible BioOrchestrator crop params species=%s lue=%s fapar=(%s, %s) root=%s",
+                       species, bio.lue_gC_per_MJ, bio.fapar_a, bio.fapar_b, bio.root_fraction)
+        complete = False
+    if complete:
         params = CropParams(float(bio.lue_gC_per_MJ), float(bio.fapar_a), float(bio.fapar_b),
                             str(bio.fapar_vi_type or "NDVI").upper(), float(bio.root_fraction), "bioorchestrator")
     elif key in LUE_BY_SPECIES and key in FAPAR_PARAMS and key in ROOT_FRACTION_BY_SPECIES:

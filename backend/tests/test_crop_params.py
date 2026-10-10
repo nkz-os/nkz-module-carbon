@@ -63,3 +63,31 @@ async def test_unknown_species_is_missing(monkeypatch):
 
 def test_phenology_parser_does_not_invent_root_fraction():
     assert PhenologyParams(species="x").root_fraction is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field,value", [("root_fraction", 0.05), ("root_fraction", 1.0), ("lue_gC_per_MJ", 0.0),
+                                         ("lue_gC_per_MJ", 12.0), ("fapar_a", -1.0)])
+async def test_implausible_bioorch_params_fall_back_to_table(monkeypatch, field, value):
+    good = dict(species="TRZAX", lue_gC_per_MJ=1.3, fapar_a=1.1, fapar_b=-0.1, fapar_vi_type="NDVI", root_fraction=0.25)
+
+    async def bio(*a, **k):
+        return PhenologyParams(**{**good, field: value})
+    monkeypatch.setattr(cp, "fetch_phenology_params", bio)
+    params, missing = await cp.resolve_crop_params("TRZAX", None, None)
+    assert params.source == "table" and missing == []
+
+
+@pytest.mark.asyncio
+async def test_implausible_bioorch_params_without_table_are_missing(monkeypatch):
+    async def bio(*a, **k):
+        return PhenologyParams(species="QUCHX", lue_gC_per_MJ=1.3, fapar_a=1.1, fapar_b=-0.1,
+                               fapar_vi_type="NDVI", root_fraction=0.02)
+    monkeypatch.setattr(cp, "fetch_phenology_params", bio)
+    params, missing = await cp.resolve_crop_params("QUCHX", None, None)
+    assert params is None and [m.item for m in missing] == ["crop_params"]
+
+
+def test_root_fraction_floor_is_the_exudate_share():
+    from app.services.campaign_balance import EXUDATE_FRACTION
+    assert cp._ROOT_FRACTION_RANGE[0] == EXUDATE_FRACTION

@@ -63,3 +63,12 @@ def test_report_hash_is_stable_and_gaps_listed():
     assert a["inputs_hash"] == b["inputs_hash"]
     assert set(CERTIFICATION_GAPS) <= set(a["certification_gaps"])
     assert "tier3_not_reached" in a["certification_gaps"]
+
+
+def test_baseline_with_a_campaign_lacking_soc_change_says_so():
+    rows = [_row(2025, through="2025-12-31"), {**_row(2026, through="2026-12-31"), "soil_carbon_delta": None}]
+    baseline = {"reference_year": 2025, "delta_soc_by_year": {2025: 0.5, 2026: 0.4}, "n2o_by_year": {}}
+    r = build_monitoring_report("t", "urn:ngsi-ld:AgriParcel:p", "VM0042", rows, baseline=baseline)
+    assert r["baseline_reference_year"] == 2025 and r["net_emission_reductions_tCO2eq_ha"] is None
+    assert "baseline_incomplete" in r["certification_gaps"] and "baseline_not_defined" not in r["certification_gaps"]
+    assert r["baseline_incomplete_years"] == [2026]

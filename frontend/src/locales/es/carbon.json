@@ -98,7 +98,8 @@
     "complete_campaign": "Aún no hay una campaña completa calculada",
     "cover_mismatch": "El NDVI ve vegetación en días sin ciclo de cultivo",
     "osavi": "Faltan escenas OSAVI en días de cultivo leñoso: calcule OSAVI en Vegetación",
-    "cycle_lifecycle": "Ciclo de vida no registrado: se supone perenne por la especie"
+    "cycle_lifecycle": "Ciclo de vida no registrado: se supone perenne por la especie",
+    "cycle_end": "Fecha de fin planificada ya pasada, sin fin registrado"
   },
   "effect": {
     "no_balance": "No se puede calcular la campaña",
@@ -111,7 +112,8 @@
     "bare_soil_assumed": "Se cuenta como suelo desnudo",
     "no_projection": "Sin proyección",
     "cover_uncertain": "Cubierta del suelo incierta: revise los ciclos de cultivo",
-    "assumed": "Se usa un supuesto declarado"
+    "assumed": "Se usa un supuesto declarado",
+    "cycle_open": "El ciclo se mantiene abierto hasta que se registre su fin"
   },
   "gap": {
     "baseline_soil_sampling": "Muestreo de suelo al inicio",
@@ -119,7 +121,8 @@
     "third_party_verification": "Verificación independiente",
     "baseline_not_defined": "Línea base sin definir",
     "tier3_not_reached": "Balance de N₂O (nivel 3) no alcanzado",
-    "open_campaign": "La última campaña aún está abierta"
+    "open_campaign": "La última campaña aún está abierta",
+    "baseline_incomplete": "Línea base sin cambio de COS en alguna campaña"
   },
   "export_vm0042": "Exportar VM0042",
   "export_gold_standard": "Exportar Gold Standard",
@@ -143,7 +146,7 @@
   "declare_hint": "Deje vacío lo que no sepa: el cálculo solo usa lo que declare aquí.",
   "partial_pct": "parcial: {{pct}} % de los días",
   "hint_export": "Solo si la cosecha no tiene peso y humedad registrados",
-  "hint_removal": "Por ejemplo, paja empacada",
+  "hint_removal": "Por ejemplo, paja empacada. Solo se aplica si hay un empacado registrado",
   "hint_n": "Solo si no hay abonados registrados en las operaciones",
   "hint_irrigation": "Solo si no hay riegos registrados en las operaciones",
   "recorded_elsewhere": "El laboreo, las cubiertas y la meteorología no se declaran aquí: salen de las operaciones de campo, de los ciclos de cultivo y de la meteo de la parcela.",
@@ -202,5 +205,11 @@
       "roller_crimper": "rodillo de cuchillas"
     },
     "irrigation_unknown": "sin riegos registrados ni declarados (se trata como secano)"
+  },
+  "baseline_incomplete": "Línea base incompleta: falta el cambio de COS en {{years}}",
+  "assumption": {
+    "repeat_reference": "Se repiten cada año el clima y el manejo de {{year}}",
+    "no_baseline": "Sin línea base definida: solo se proyecta el manejo actual",
+    "baseline_same_climate": "Línea base: manejo de {{year}} con el mismo clima"
   }
 }

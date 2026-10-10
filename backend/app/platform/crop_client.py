@@ -121,6 +121,11 @@ async def _fetch_parcel_entity(parcel_id: str, tenant_id: str) -> dict[str, Any]
     return results[0] if results else None
 
 
+async def fetch_parcel_entity(parcel_id: str, tenant_id: str) -> dict[str, Any] | None:
+    """The AgriParcel entity, or None when the tenant has no such parcel (broker errors propagate)."""
+    return await _fetch_parcel_entity(parcel_id, tenant_id)
+
+
 def _centroid_from_location(location: Any) -> tuple[float, float] | None:
     if not isinstance(location, dict):
         return None
