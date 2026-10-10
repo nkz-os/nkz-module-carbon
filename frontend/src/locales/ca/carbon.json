@@ -148,5 +148,6 @@
   "not_declared": "Sense declarar",
   "yes": "Sí",
   "no": "No",
-  "declare_hint": "Deixeu buit el que no sapigueu: el càlcul només fa servir el que declareu aquí."
+  "declare_hint": "Deixeu buit el que no sapigueu: el càlcul només fa servir el que declareu aquí.",
+  "partial_pct": "parcial: {{pct}} % dels dies"
 }

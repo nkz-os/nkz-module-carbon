@@ -7,7 +7,7 @@ import type { CampaignRow } from '../api/carbonApi';
 import CarbonTierBadge from './CarbonTierBadge';
 import CarbonMissingList from './CarbonMissingList';
 import { colors } from './styles';
-import { currentYear, fmt, fmtSigned, shortParcelId } from './campaignFormat';
+import { currentYear, fmt, fmtSigned, productionUnit, shortParcelId } from './campaignFormat';
 
 interface CarbonContextPanelProps {
   entityId?: string;
@@ -119,7 +119,7 @@ const CarbonContextPanel: React.FC<CarbonContextPanelProps> = (props) => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-        <CompactKPI label={t('co2_gross')} value={fmt(row.co2_sequestered_gross, 1)} unit={t('units.tCO2_ha')} />
+        <CompactKPI label={t('co2_gross')} value={fmt(row.co2_sequestered_gross, 1)} unit={productionUnit(t('units.tCO2_ha'), row.tier1_coverage, t)} />
         <CompactKPI label={t('soilCarbonDelta')} value={fmtSigned(row.soil_carbon_delta)} unit={t('units.tC_ha')} />
         <CompactKPI label={t('cover_days')} value={String(row.cover_days)} unit={`${t('bare_days')}: ${row.bare_days}`} />
         <CompactKPI label={t('co2eq_net')} value={fmtSigned(row.co2eq_net, 1)} unit={t('units.tCO2eq_ha')} />

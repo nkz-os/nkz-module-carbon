@@ -6,7 +6,8 @@ import { fetchCampaigns } from '../api/carbonApi';
 import type { CampaignRow } from '../api/carbonApi';
 import CarbonTierBadge from './CarbonTierBadge';
 import { colors } from './styles';
-import { currentYear, fmt, fmtSigned, shortParcelId } from './campaignFormat';
+import { currentYear, fmt, fmtSigned, productionUnit, shortParcelId } from './campaignFormat';
+import CarbonMissingList from './CarbonMissingList';
 
 interface CarbonDashboardWidgetProps {
   entityId?: string;
@@ -80,13 +81,14 @@ const CarbonDashboardWidget: React.FC<CarbonDashboardWidgetProps> = (props) => {
         <CarbonTierBadge tier={row.data_tier} compact />
       </div>
       <MetricGrid columns={3}>
-        <MetricCard label={t('co2_gross')} value={fmt(row.co2_sequestered_gross, 1)} unit={t('units.tCO2_ha')} />
+        <MetricCard label={t('co2_gross')} value={fmt(row.co2_sequestered_gross, 1)} unit={productionUnit(t('units.tCO2_ha'), row.tier1_coverage, t)} />
         <MetricCard label={t('soilCarbonDelta')} value={fmtSigned(row.soil_carbon_delta)} unit={t('units.tC_ha')} />
         <MetricCard label={t('cover_days')} value={String(row.cover_days)} unit={`${t('bare_days')}: ${row.bare_days}`} />
       </MetricGrid>
       <div style={{ fontSize: '11px', color: colors.textMuted }}>
         {row.computed_through ? `${t('computed_through')}: ${row.computed_through}` : t('campaign_not_computed')}
       </div>
+      <CarbonMissingList missing={row.missing} maxItems={2} />
     </div>
   );
 };

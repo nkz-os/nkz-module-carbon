@@ -148,5 +148,6 @@
   "not_declared": "Adierazi gabe",
   "yes": "Bai",
   "no": "Ez",
-  "declare_hint": "Utzi hutsik ez dakizuna: kalkuluak hemen adierazten duzuna bakarrik erabiltzen du."
+  "declare_hint": "Utzi hutsik ez dakizuna: kalkuluak hemen adierazten duzuna bakarrik erabiltzen du.",
+  "partial_pct": "partziala: egunen % {{pct}}"
 }

@@ -7,7 +7,7 @@ import CarbonTierBadge from './CarbonTierBadge';
 import { fetchTenantSummary } from '../api/carbonApi';
 import { colors } from './styles';
 import type { ParcelSummary, YearlyAggregation } from '../api/carbonApi';
-import { DASH, currentYear, fmt, fmtSigned } from './campaignFormat';
+import { DASH, currentYear, fmt, fmtSigned, productionUnit } from './campaignFormat';
 
 interface SummaryRow extends ParcelSummary {
   id: string;
@@ -86,7 +86,8 @@ const CarbonPage: React.FC = () => {
     {
       accessorKey: 'co2_gross_tCO2_ha' as const,
       header: t('co2_gross'),
-      cell: (info: { getValue: () => number | null }) => `${fmt(info.getValue(), 1)} ${t('units.tCO2_ha')}`,
+      cell: (info: { getValue: () => number | null; row: { original: SummaryRow } }) =>
+        `${fmt(info.getValue(), 1)} ${productionUnit(t('units.tCO2_ha'), info.row.original.tier1_coverage, t)}`,
     },
     {
       accessorKey: 'delta_soc_tC_ha' as const,

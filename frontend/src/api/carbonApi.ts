@@ -264,6 +264,7 @@ export interface ParcelSummary {
   co2_gross_tCO2_ha: number | null;
   delta_soc_tC_ha: number | null;
   co2eq_net_tCO2eq_ha: number | null;
+  tier1_coverage: number | null;
 }
 
 export interface YearlyAggregation {

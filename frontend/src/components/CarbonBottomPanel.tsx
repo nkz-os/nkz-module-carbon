@@ -10,7 +10,7 @@ import CarbonProjectionChart from './CarbonProjectionChart';
 import CarbonManagementForm from './CarbonManagementForm';
 import CarbonMRVExport from './CarbonMRVExport';
 import { colors } from './styles';
-import { DASH, currentYear, fmt, fmtSigned } from './campaignFormat';
+import { DASH, currentYear, fmt, fmtSigned, productionUnit } from './campaignFormat';
 
 interface CarbonBottomPanelProps {
   entityId?: string;
@@ -228,7 +228,7 @@ function OverviewTab({
   }
 
   const metrics = [
-    { label: t('co2_gross'), value: fmt(row.co2_sequestered_gross), unit: t('units.tCO2_ha') },
+    { label: t('co2_gross'), value: fmt(row.co2_sequestered_gross), unit: productionUnit(t('units.tCO2_ha'), row.tier1_coverage, t) },
     {
       label: t('soilCarbonDelta'),
       value: fmtSigned(row.soil_carbon_delta),

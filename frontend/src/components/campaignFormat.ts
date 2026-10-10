@@ -18,3 +18,10 @@ export function currentYear(): number {
 export function shortParcelId(id: string): string {
   return id.includes(':') ? id.split(':').pop() || id : id;
 }
+
+/** Unit line for production totals: says when they cover only part of the cycle days. */
+export function productionUnit(unit: string, coverage: number | null | undefined,
+                               t: (k: string, o?: Record<string, unknown>) => string): string {
+  if (coverage === null || coverage === undefined || coverage >= 1) return unit;
+  return `${unit} · ${t('partial_pct', { pct: Math.round(coverage * 100) })}`;
+}

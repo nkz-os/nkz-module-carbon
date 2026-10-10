@@ -90,10 +90,12 @@ class ParcelSummary(BaseModel):
     co2_gross_tCO2_ha: Optional[float] = None
     delta_soc_tC_ha: Optional[float] = None
     co2eq_net_tCO2eq_ha: Optional[float] = None
+    tier1_coverage: Optional[float] = None  # < 1: production computed on part of the cycle days
 
 
 class YearlyAggregation(BaseModel):
-    """Means over the parcels with that campaign computed (null values excluded)."""
+    """Means over the parcels with that campaign computed (null values excluded;
+    gross CO2 only from campaigns whose production covers every cycle day)."""
     year: int
     parcel_count: int = 0
     co2_gross_tCO2_ha_mean: Optional[float] = None

@@ -148,5 +148,6 @@
   "not_declared": "Sin declarar",
   "yes": "Sí",
   "no": "No",
-  "declare_hint": "Deje vacío lo que no sepa: el cálculo solo usa lo que declare aquí."
+  "declare_hint": "Deje vacío lo que no sepa: el cálculo solo usa lo que declare aquí.",
+  "partial_pct": "parcial: {{pct}} % de los días"
 }

@@ -133,6 +133,7 @@ async def get_tenant_summary(
             co2_gross_tCO2_ha=(row or {}).get("co2_sequestered_gross"),
             delta_soc_tC_ha=(row or {}).get("soil_carbon_delta"),
             co2eq_net_tCO2eq_ha=(row or {}).get("co2eq_net"),
+            tier1_coverage=(row or {}).get("tier1_coverage"),
         ))
 
     def mean(values):
@@ -143,7 +144,8 @@ async def get_tenant_summary(
         YearlyAggregation(
             year=y,
             parcel_count=len(rs),
-            co2_gross_tCO2_ha_mean=mean(r.get("co2_sequestered_gross") for r in rs),
+            co2_gross_tCO2_ha_mean=mean(r.get("co2_sequestered_gross") for r in rs
+                                        if (r.get("tier1_coverage") or 0) >= 1.0),
             delta_soc_tC_ha_mean=mean(r.get("soil_carbon_delta") for r in rs),
         )
         for y, rs in sorted(by_year.items())

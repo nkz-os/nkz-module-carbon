@@ -148,5 +148,6 @@
   "not_declared": "Not declared",
   "yes": "Yes",
   "no": "No",
-  "declare_hint": "Leave empty what you do not know: the balance only uses what you declare here."
+  "declare_hint": "Leave empty what you do not know: the balance only uses what you declare here.",
+  "partial_pct": "partial: {{pct}} % of days"
 }
