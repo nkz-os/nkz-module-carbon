@@ -6,7 +6,6 @@ from app.api.management import router as management_router
 from app.api.mrv import router as mrv_router
 from app.api.scenarios import router as scenarios_router
 from app.api.timeseries import router as timeseries_router
-from app.api.webhooks import router as webhooks_router
 
 __all__ = [
     "internal_router",
@@ -16,5 +15,4 @@ __all__ = [
     "mrv_router",
     "scenarios_router",
     "timeseries_router",
-    "webhooks_router",
 ]

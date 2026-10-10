@@ -9,7 +9,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from app.services.roth_c_model import MonthlyInputs
+from app.services.roth_c_model import RothCMonth, pan_evap_from_et0
 
 logger = logging.getLogger(__name__)
 
@@ -82,17 +82,14 @@ async def onboard_parcela(
         year_from=year_from, year_to=current_year,
     )
 
-    # Convert to RothC MonthlyInputs
+    # Convert to RothC months (ETp -> open-pan evaporation, all plant C to DPM/RPM)
     monthly_inputs = [
-        MonthlyInputs(
-            temp_celsius=m.temp_celsius,
-            precip_mm=m.precip_mm,
-            etp_mm=m.etp_mm,
-            cover_present=m.cover_present,
-            c_input_aerea_tC_ha=m.c_input_aerea_tC_ha,
-            c_input_raices_tC_ha=m.c_input_raices_tC_ha,
-            c_input_exudados_tC_ha=m.c_input_exudados_tC_ha,
-            clay_pct=clay_pct,
+        RothCMonth(
+            temp_c=m.temp_celsius,
+            rain_mm=m.precip_mm,
+            pan_evap_mm=pan_evap_from_et0(m.etp_mm),
+            plant_cover=m.cover_present,
+            plant_c=m.c_input_aerea_tC_ha + m.c_input_raices_tC_ha + m.c_input_exudados_tC_ha,
         )
         for m in monthly_records
     ]

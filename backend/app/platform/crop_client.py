@@ -1,15 +1,13 @@
-"""Read assigned crop and parcel geometry from Orion-LD (tenant-scoped).
+"""Parcel helpers for carbon (tenant-scoped).
 
-Carbon consumes the campaign crop commitment written by BioOrchestrator:
-AgriParcel.hasAgriCrop → AgriCrop (species, plantingDate, status).
-Orion is the sole source of truth for crop identity.
+Species keys for the carbon tables, parcel URN helpers and the parcel centroid.
+Crop cycles come from the platform resolver (crop_cycles_client).
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from app.common.orion import get_orion_client
 
@@ -31,18 +29,6 @@ EPPO_TO_CARBON_SPECIES: dict[str, str] = {
     "CITLO": "citrus",
     "CITSI": "citrus",
 }
-
-
-@dataclass(frozen=True)
-class AssignedCrop:
-    """Active campaign crop for a parcel, as stored in Orion-LD."""
-
-    species_raw: str
-    species_key: str
-    planting_date: str | None
-    variety: str | None
-    crop_entity_id: str
-    status: str | None
 
 
 def normalize_parcel_short_id(parcel_id: str) -> str:
@@ -111,41 +97,6 @@ def _ngsild_rel_object(entity: dict[str, Any], attr: str) -> str | None:
     return None
 
 
-def _extract_species(crop_entity: dict[str, Any]) -> str | None:
-    for attr in (
-        "species",
-        "cropSpecies",
-        "agriCropType",
-        "cropType",
-        "description",
-        "name",
-    ):
-        val = _ngsild_prop(crop_entity, attr)
-        if val:
-            return str(val).strip()
-    return None
-
-
-def _crop_from_entity(crop_entity: dict[str, Any]) -> AssignedCrop | None:
-    species_raw = _extract_species(crop_entity)
-    if not species_raw:
-        return None
-    crop_id = str(crop_entity.get("id", ""))
-    if not crop_id:
-        return None
-    variety = _ngsild_prop(crop_entity, "variety") or _ngsild_prop(
-        crop_entity, "varietyName"
-    )
-    return AssignedCrop(
-        species_raw=species_raw,
-        species_key=carbon_species_key(species_raw),
-        planting_date=_ngsild_prop(crop_entity, "plantingDate"),
-        variety=str(variety) if variety else None,
-        crop_entity_id=crop_id,
-        status=str(_ngsild_prop(crop_entity, "status") or "").lower() or None,
-    )
-
-
 async def _fetch_parcel_entity(parcel_id: str, tenant_id: str) -> dict[str, Any] | None:
     orion = get_orion_client()
     short = normalize_parcel_short_id(parcel_id)
@@ -167,102 +118,6 @@ async def _fetch_parcel_entity(parcel_id: str, tenant_id: str) -> dict[str, Any]
         limit=1,
     )
     return results[0] if results else None
-
-
-async def _fetch_crop_entity(crop_id: str, tenant_id: str) -> dict[str, Any] | None:
-    orion = get_orion_client()
-    entity = await orion.get_entity(crop_id, tenant_id)
-    if entity:
-        return entity
-    results = await orion.query_entities(
-        entity_type="AgriCrop",
-        tenant_id=tenant_id,
-        query=f'id=="{crop_id}"',
-        limit=1,
-    )
-    return results[0] if results else None
-
-
-async def _query_active_crop_for_parcel(
-    parcel_ref: str,
-    tenant_id: str,
-) -> AssignedCrop | None:
-    orion = get_orion_client()
-
-    # Query both relationship names (hasAgriParcel / refAgriParcel) — active first
-    for attr in ("hasAgriParcel", "refAgriParcel"):
-        results = await orion.query_entities(
-            entity_type="AgriCrop",
-            tenant_id=tenant_id,
-            query=f'{attr}=="{parcel_ref}";status=="active"',
-            limit=5,
-        )
-        for ent in results or []:
-            crop = _crop_from_entity(ent)
-            if crop:
-                return crop
-
-    # Fallback: any non-harvested crop (dedupe across both relationship names)
-    seen: set[str] = set()
-    for attr in ("hasAgriParcel", "refAgriParcel"):
-        results = await orion.query_entities(
-            entity_type="AgriCrop",
-            tenant_id=tenant_id,
-            query=f'{attr}=="{parcel_ref}"',
-            limit=10,
-        )
-        for ent in results or []:
-            if ent["id"] in seen:
-                continue
-            seen.add(ent["id"])
-            crop = _crop_from_entity(ent)
-            if crop and crop.status != "harvested":
-                return crop
-    return None
-
-
-async def fetch_assigned_crop(parcel_id: str, tenant_id: str) -> AssignedCrop | None:
-    """Return the campaign crop assigned to a parcel via Orion-LD.
-
-    Resolution order:
-    1. AgriParcel.hasAgriCrop (preferred) or legacy refAgriCrop
-    2. Active AgriCrop linked to the parcel (hasAgriParcel / refAgriParcel)
-    """
-    parcel = await _fetch_parcel_entity(parcel_id, tenant_id)
-    if not parcel:
-        logger.info(
-            "AgriParcel not found for %s in tenant %s",
-            parcel_id,
-            tenant_id,
-        )
-        short = normalize_parcel_short_id(parcel_id)
-        return await _query_active_crop_for_parcel(
-            parcel_urn(tenant_id, short),
-            tenant_id,
-        )
-
-    parcel_ref = str(parcel.get("id", ""))
-    crop_ref = _ngsild_rel_object(parcel, "hasAgriCrop") or _ngsild_rel_object(
-        parcel, "refAgriCrop"
-    )
-
-    if crop_ref:
-        crop_entity = await _fetch_crop_entity(crop_ref, tenant_id)
-        if crop_entity:
-            crop = _crop_from_entity(crop_entity)
-            if crop and crop.status != "harvested":
-                return crop
-
-    if parcel_ref:
-        fallback = await _query_active_crop_for_parcel(parcel_ref, tenant_id)
-        if fallback:
-            return fallback
-
-    short = normalize_parcel_short_id(parcel_id)
-    return await _query_active_crop_for_parcel(
-        parcel_urn(tenant_id, short),
-        tenant_id,
-    )
 
 
 def _centroid_from_location(location: Any) -> tuple[float, float] | None:

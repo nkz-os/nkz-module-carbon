@@ -1,26 +1,23 @@
-"""Arrow IPC timeseries endpoints for DataHub integration.
+"""Arrow IPC series for DataHub: one point per computed campaign.
 
-Provides:
+  GET /api/carbon/timeseries/entities/{entity_id}/data?attribute=soilCarbonDelta
 
-  GET /api/carbon/timeseries/entities/{entity_id}/data
-      Arrow IPC stream for a single entity's carbon time series.
-
-Returns `application/vnd.apache.arrow.stream` media type.
+Float64 columns ``timestamp`` (Unix seconds of the campaign's computedThrough)
+and ``value``. A campaign without the value is skipped, never sent as zero.
 """
 
-import io
 import logging
-from datetime import date, datetime, timezone
-from typing import Optional
+from datetime import datetime, timezone
 
 import pyarrow as pa
 import pyarrow.ipc
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
 from app.common.auth import require_tenant_header
 from app.models.schemas import ErrorResponse
-from app.common.orion import query_entities
+from app.platform.errors import SourceUnavailable
+from app.services.campaign_runner import list_campaigns
 
 logger = logging.getLogger(__name__)
 
@@ -28,129 +25,48 @@ router = APIRouter(prefix="/api/carbon", tags=["timeseries"])
 
 ARROW_MIME = "application/vnd.apache.arrow.stream"
 
-# Attribute mapping: API name → column name in Arrow table
-ATTRIBUTE_TO_COLUMN: dict[str, str] = {
-    "carbonFixationRateDaily": "gpp",
-    "gppDaily": "gpp",
-    "nppDaily": "npp",
-    "co2SequesteredDaily": "co2_daily",
-    "co2SequesteredCumulative": "co2_cumulative",
-    "agbDry": "agb",
-    "bgbDry": "bgb",
-    "soilCarbonDelta": "soc_delta",
-    "co2eqNetDaily": "co2eq_net_daily",
-    "co2eqNetCumulative": "co2eq_net_cumulative",
+# API attribute name -> stored campaign field
+ATTRIBUTES: dict[str, str] = {
+    "co2SequesteredGross": "co2_sequestered_gross",
+    "soilCarbonDelta": "soil_carbon_delta",
+    "socEnd": "soc_end",
+    "co2eqNet": "co2eq_net",
+    "nppTotal": "npp_total",
+    "gppTotal": "gpp_total",
 }
 
-
-# Schema for single-series Arrow output
-_SERIES_SCHEMA = pa.schema([
+_SCHEMA = pa.schema([
     pa.field("timestamp", pa.float64()),  # Unix SECONDS
     pa.field("value", pa.float64()),
 ])
 
 
-async def _entity_assessments_to_arrow(
-    entity_id: str,
-    tenant_id: str,
-    attribute: str = "gppDaily",
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    limit: int = 100,
-) -> pa.Table:
-    """Fetch CarbonAssessment entities from Orion-LD and build an Arrow table."""
-    try:
-        results = await query_entities(
-            entity_type="CarbonAssessment",
-            tenant_id=tenant_id,
-            query=f'hasAgriParcel=="urn:ngsi-ld:AgriParcel:{tenant_id}:{entity_id}"',
-            limit=limit,
-        )
-    except Exception as exc:
-        logger.warning("Orion-LD query failed for %s: %s", entity_id, exc)
-        results = []
-
-    timestamps: list[float] = []
-    values: list[float] = []
-
-    for ent in results:
-        props = {k: v.get("value") if isinstance(v, dict) and "value" in v else v
-                 for k, v in ent.items()
-                 if k not in ("id", "type", "@context")}
-
-        date_str = props.get("assessmentDate", "")
-        if date_str:
-            try:
-                dt = datetime.fromisoformat(date_str)
-                timestamps.append(dt.timestamp())
-            except (ValueError, TypeError):
-                timestamps.append(0.0)
-        else:
-            timestamps.append(0.0)
-
-        val = props.get(attribute, 0.0)
-        try:
-            values.append(float(val))
-        except (ValueError, TypeError):
-            values.append(0.0)
-
-    return pa.table(
-        {"timestamp": pa.array(timestamps, type=pa.float64()),
-         "value": pa.array(values, type=pa.float64())},
-        schema=_SERIES_SCHEMA,
-    )
-
-
-def _empty_arrow() -> bytes:
-    """Return an empty Arrow IPC stream with the correct schema."""
-    table = pa.table(
-        {"timestamp": pa.array([], type=pa.float64()),
-         "value": pa.array([], type=pa.float64())},
-        schema=_SERIES_SCHEMA,
-    )
-    sink = pa.BufferOutputStream()
-    with pa.ipc.new_stream(sink, _SERIES_SCHEMA) as writer:
-        writer.write_table(table)
-    return sink.getvalue().to_pybytes()
-
-
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
-
 @router.get(
     "/timeseries/entities/{entity_id}/data",
-    responses={
-        200: {"content": {ARROW_MIME: {}}},
-        404: {"model": ErrorResponse},
-    },
+    responses={200: {"content": {ARROW_MIME: {}}}, 422: {"model": ErrorResponse}},
 )
 async def get_entity_timeseries(
     entity_id: str,
-    attribute: str = Query(default="gppDaily", description="Attribute name"),
-    tenant_id: str = require_tenant_header,
-    limit: int = Query(default=100, ge=1, le=1000),
+    attribute: str = Query(default="soilCarbonDelta", description="Campaign attribute"),
+    tenant_id: str = Depends(require_tenant_header),
 ):
-    """Arrow IPC stream of time-series data for a single entity.
-
-    Returns an Arrow IPC stream (application/vnd.apache.arrow.stream)
-    with Float64 columns: timestamp (Unix seconds), value.
-    """
+    field = ATTRIBUTES.get(attribute)
+    if field is None:
+        raise HTTPException(status_code=422, detail=f"attribute must be one of {', '.join(ATTRIBUTES)}")
     try:
-        arrow_bytes = await _entity_assessments_to_arrow(
-            entity_id=entity_id,
-            tenant_id=tenant_id,
-            attribute=attribute,
-            limit=limit,
-        )
-        sink = pa.BufferOutputStream()
-        with pa.ipc.new_stream(sink, _SERIES_SCHEMA) as writer:
-            writer.write_table(arrow_bytes)
-        return Response(content=sink.getvalue().to_pybytes(), media_type=ARROW_MIME)
-    except Exception as exc:
-        logger.exception("Error building Arrow stream for %s", entity_id)
-        return Response(content=_empty_arrow(), media_type=ARROW_MIME)
-
-
-
+        rows = await list_campaigns(tenant_id, entity_id)
+    except SourceUnavailable as exc:
+        raise HTTPException(status_code=503, detail={"error": "source_unavailable", "detail": str(exc)})
+    stamps, values = [], []
+    for r in rows:
+        value, through = r.get(field), r.get("computed_through")
+        if value is None or not through:
+            continue
+        stamps.append(datetime.fromisoformat(f"{through}T00:00:00").replace(tzinfo=timezone.utc).timestamp())
+        values.append(float(value))
+    table = pa.table({"timestamp": pa.array(stamps, type=pa.float64()),
+                      "value": pa.array(values, type=pa.float64())}, schema=_SCHEMA)
+    sink = pa.BufferOutputStream()
+    with pa.ipc.new_stream(sink, _SCHEMA) as writer:
+        writer.write_table(table)
+    return Response(content=sink.getvalue().to_pybytes(), media_type=ARROW_MIME)

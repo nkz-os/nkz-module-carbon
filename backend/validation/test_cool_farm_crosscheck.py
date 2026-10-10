@@ -10,9 +10,7 @@ Scenarios calibrated for Mediterranean climate with realistic C inputs.
 import pytest
 
 from app.services.roth_c_model import (
-    MonthlyInputs,
-    init_pools_weihermuller,
-    run_rothc_monthly,
+    RothCMonth, RothCState, pan_evap_from_et0, run_months, weihermuller_pools,
 )
 
 SCENARIOS = {
@@ -61,9 +59,7 @@ SCENARIOS = {
 
 def _run_scenario(scenario: dict, years: int = 20) -> dict:
     """Run a scenario and return modeled results."""
-    pools = init_pools_weihermuller(
-        scenario["soc_initial_tC_ha"], scenario["clay_pct"]
-    )
+    pools = RothCState(weihermuller_pools(scenario["soc_initial_tC_ha"], scenario["clay_pct"]), 0.0)
     clay = scenario["clay_pct"]
 
     # Mediterranean climate template
@@ -88,23 +84,20 @@ def _run_scenario(scenario: dict, years: int = 20) -> dict:
                     p = max(p, 80)  # supplemental irrigation
                 e = min(e * 1.1, 220)  # slightly higher ETp with full canopy
 
-            monthly.append(MonthlyInputs(
-                temp_celsius=t, precip_mm=p, etp_mm=e,
-                cover_present=cover,
-                c_input_aerea_tC_ha=c_aerea,
-                c_input_raices_tC_ha=c_raices,
-                c_input_exudados_tC_ha=c_aerea * 0.07,
-                clay_pct=clay,
+            monthly.append(RothCMonth(
+                temp_c=t, rain_mm=p, pan_evap_mm=pan_evap_from_et0(e),
+                plant_cover=cover,
+                plant_c=c_aerea + c_raices + c_aerea * 0.07,
             ))
 
-    result = run_rothc_monthly(pools, monthly, clay)
+    run = run_months(pools, monthly, clay, 23.0)
 
     soc_initial = scenario["soc_initial_tC_ha"]
-    soc_final = result.pools.total_tC_ha
+    soc_final = run.final.pools.total
     return {
         "soc_final_tC_ha": soc_final,
         "soc_delta_tC_ha_yr": (soc_final - soc_initial) / years,
-        "rh_tC_ha_yr": result.rh_tC_ha_yr,
+        "rh_tC_ha_yr": sum(run.co2) / years,
     }
 
 

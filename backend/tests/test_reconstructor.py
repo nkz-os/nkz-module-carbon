@@ -50,20 +50,17 @@ class TestSpinupDriver:
     @pytest.mark.asyncio
     async def test_spinup_returns_pool_state(self):
         from app.reconstructor.spinup_driver import run_spinup
-        from app.services.roth_c_model import MonthlyInputs
+        from app.services.roth_c_model import RothCMonth
 
-        monthly = [
-            MonthlyInputs(temp_celsius=20.0, precip_mm=50.0, etp_mm=80.0, cover_present=True)
-            for _ in range(12)
-        ]
+        monthly = [RothCMonth(temp_c=20.0, rain_mm=50.0, pan_evap_mm=80.0, plant_cover=True) for _ in range(12)]
         pools = await run_spinup(monthly, soc_initial_estimate_tC_ha=50.0, clay_pct=20.0, years=1)
-        assert pools.total_tC_ha > 0
+        assert 0 < pools.total < 50.0  # no inputs: SOC can only decline
 
     @pytest.mark.asyncio
     async def test_spinup_empty_inputs(self):
         from app.reconstructor.spinup_driver import run_spinup
         pools = await run_spinup([], soc_initial_estimate_tC_ha=50.0, clay_pct=20.0, years=1)
-        assert pools.total_tC_ha > 0
+        assert abs(pools.total - 50.0) < 1e-9
 
 
 class TestCacheLayer:

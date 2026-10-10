@@ -15,7 +15,6 @@ from app.api import (
     mrv_router,
     scenarios_router,
     timeseries_router,
-    webhooks_router,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -57,4 +56,3 @@ app.include_router(management_router)
 app.include_router(mrv_router)
 app.include_router(scenarios_router)
 app.include_router(timeseries_router)
-app.include_router(webhooks_router)

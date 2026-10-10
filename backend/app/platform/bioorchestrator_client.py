@@ -31,17 +31,6 @@ class PhenologyParams:
     match_level: str = "none"  # "exact" | "generic" | "none"
 
 
-@dataclass
-class SoilData:
-    """Soil properties from BioOrchestrator (SoilGrids proxy)."""
-    clay_pct: float = 20.0
-    sand_pct: float = 30.0
-    silt_pct: float = 50.0
-    ph: float = 7.0
-    soc_tC_ha: Optional[float] = None  # 0-30cm
-    bulk_density_kg_m3: Optional[float] = None
-
-
 def _opt_float(v) -> Optional[float]:
     """A number the source gave, or None — never a generic default."""
     try:
@@ -95,33 +84,4 @@ async def fetch_phenology_params(
             )
         except Exception as exc:
             logger.warning("BioOrchestrator phenology fetch failed: %s", exc)
-            return None
-
-
-async def fetch_soil_data(
-    lat: float,
-    lon: float,
-    client: httpx.AsyncClient | None = None,
-) -> SoilData | None:
-    """Fetch soil properties from BioOrchestrator (SoilGrids 2.0 proxy)."""
-    async with (client or httpx.AsyncClient()) as c:
-        try:
-            resp = await c.get(
-                f"{BIOORCHESTRATOR_URL}/api/graph/soil-data",
-                params={"lat": lat, "lon": lon},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-            return SoilData(
-                clay_pct=float(data.get("clay_pct", 20.0)),
-                sand_pct=float(data.get("sand_pct", 30.0)),
-                silt_pct=float(data.get("silt_pct", 50.0)),
-                ph=float(data.get("ph", 7.0)),
-                soc_tC_ha=data.get("soc_tC_ha"),
-                bulk_density_kg_m3=data.get("bulk_density_kg_m3"),
-            )
-        except Exception as exc:
-            logger.warning("BioOrchestrator soil data fetch failed: %s", exc)
             return None
