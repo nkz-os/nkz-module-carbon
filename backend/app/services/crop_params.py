@@ -31,6 +31,9 @@ FAPAR_PARAMS: dict[str, tuple[float, float, str]] = {
     "almond": (1.40, -0.240, "OSAVI"), "citrus": (1.40, -0.240, "OSAVI"),
 }
 
+# Species whose cycles are perennial when the crop record does not say so.
+WOODY_SPECIES = {"olive", "vineyard", "almond", "citrus"}
+
 # Indices the platform publishes per acquisition (EOProduct).
 AVAILABLE_VI = {"NDVI", "OSAVI"}
 

@@ -80,12 +80,12 @@
   },
   "missing": {
     "weather": "Incomplete daily weather",
-    "ndvi": "Satellite images (NDVI) missing on crop days",
+    "ndvi": "NDVI scenes missing on crop days",
     "soil": "No soil data for the parcel",
     "soil_soc": "Invalid soil organic carbon or bulk density",
     "soil_clay": "Invalid soil clay content",
     "crop_params": "Crop without calibrated parameters",
-    "vi_type": "The crop needs the OSAVI index, which is not available",
+    "vi_type": "The crop is calibrated on a vegetation index the platform does not publish",
     "harvest_export": "Harvest weight, moisture or area missing",
     "residue_removal": "Baling without a declared share of straw removed",
     "organic_c": "Organic fertilization without declared carbon",
@@ -96,7 +96,9 @@
     "cycles": "No crop cycles: counted as bare soil",
     "cycle_biomass": "Data missing for part of the crop cycle",
     "complete_campaign": "No complete campaign computed yet",
-    "cover_mismatch": "NDVI shows vegetation on days without a crop cycle"
+    "cover_mismatch": "NDVI shows vegetation on days without a crop cycle",
+    "osavi": "OSAVI scenes missing on woody-crop days: compute OSAVI in Vegetation",
+    "cycle_lifecycle": "Lifecycle not recorded: perennial inferred from the species"
   },
   "effect": {
     "no_balance": "The campaign cannot be computed",
@@ -108,7 +110,8 @@
     "uses_planned_date": "The planned date is used",
     "bare_soil_assumed": "Counted as bare soil",
     "no_projection": "No projection",
-    "cover_uncertain": "Soil cover uncertain: check the crop cycles"
+    "cover_uncertain": "Soil cover uncertain: check the crop cycles",
+    "assumed": "A declared assumption is used"
   },
   "gap": {
     "baseline_soil_sampling": "Soil sampling at the start",

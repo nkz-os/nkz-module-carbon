@@ -18,6 +18,8 @@ _PAGE = 500
 _EARTH_RADIUS_M = 6371008.8
 # Carbon fraction of crop dry matter (IPCC default, also used for biomass in METHODOLOGY).
 _C_IN_DM = 0.45
+# 1 mm of water over a hectare is 10 000 litres.
+_L_HA_PER_MM = 10000.0
 
 
 def _value(attr: Any) -> Any:
@@ -143,7 +145,8 @@ async def fetch_operations(
         elif kind == "baling":
             bales.append(BalingEvent(day))
         elif kind == "irrigation":
-            irrigs.append(IrrigationEvent(day, _num(e.get("waterPerHectare"))))
+            per_ha = _num(e.get("waterPerHectare"))  # field-operations records litres per hectare
+            irrigs.append(IrrigationEvent(day, per_ha / _L_HA_PER_MM if per_ha is not None else None))
     key = lambda x: x.day  # noqa: E731
     return OperationsRead(
         harvests=tuple(sorted(harvests, key=key)), fertilizations=tuple(sorted(ferts, key=key)),

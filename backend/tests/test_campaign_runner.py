@@ -328,3 +328,17 @@ def test_entity_view_restores_single_element_lists():
     assert row["missing"] == [{"item": "soil"}] and row["assumptions"] == ["only one"]
     assert row["data_sources"] == ["eo_ndvi"]
     assert cr.entity_to_dict({"id": "y", "type": "CarbonAssessment"})["missing"] == []
+
+
+
+@pytest.mark.asyncio
+async def test_woody_species_without_lifecycle_is_treated_as_perennial(env, monkeypatch):
+    async def cycles(urn, tenant, at, client=None):
+        c = _cycle_dict("2026-01-01", None, species="OLVEU")
+        c["lifecycle"] = "unknown"
+        return [c]
+    monkeypatch.setattr(cr, "fetch_cycles", cycles)
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    items = {m.item for m in b.missing}
+    assert "perennial_litter" in items and "cycle_lifecycle" in items
+    assert b.tier <= 1 and b.co2eq_net_tCO2eq_ha is None

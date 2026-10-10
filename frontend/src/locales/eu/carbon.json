@@ -80,12 +80,12 @@
   },
   "missing": {
     "weather": "Eguneko meteorologia osatu gabe",
-    "ndvi": "Satelite-irudiak (NDVI) falta dira labore-egunetan",
+    "ndvi": "NDVI irudiak falta dira labore-egunetan",
     "soil": "Lurzatiak ez du lurzoru-daturik",
     "soil_soc": "Lurzoruaren karbono organikoa edo dentsitate itxurazkoa ez da baliozkoa",
     "soil_clay": "Lurzoruaren buztina ez da baliozkoa",
     "crop_params": "Parametro kalibraturik gabeko laborea",
-    "vi_type": "Laboreak OSAVI indizea behar du, eta ez dago eskuragarri",
+    "vi_type": "Laborea plataformak argitaratzen ez duen landaredi-indize batekin kalibratuta dago",
     "harvest_export": "Uztaren pisua, hezetasuna edo azalera falta da",
     "residue_removal": "Fardoak, kendutako lasto-zatia adierazi gabe",
     "organic_c": "Ongarritze organikoa, karbonoa adierazi gabe",
@@ -96,7 +96,9 @@
     "cycles": "Labore-ziklorik ez: lur biluzi gisa kontatzen da",
     "cycle_biomass": "Labore-zikloaren zati baten datuak falta dira",
     "complete_campaign": "Oraindik ez dago kanpaina osorik kalkulatuta",
-    "cover_mismatch": "NDVIak landaredia ikusten du labore-ziklorik gabeko egunetan"
+    "cover_mismatch": "NDVIak landaredia ikusten du labore-ziklorik gabeko egunetan",
+    "osavi": "OSAVI irudiak falta dira labore zurkarakoetan: kalkulatu OSAVI Landaredian",
+    "cycle_lifecycle": "Bizi-zikloa erregistratu gabe: espezieagatik iraunkorra dela suposatzen da"
   },
   "effect": {
     "no_balance": "Ezin da kanpaina kalkulatu",
@@ -108,7 +110,8 @@
     "uses_planned_date": "Planifikatutako data erabiltzen da",
     "bare_soil_assumed": "Lur biluzi gisa kontatzen da",
     "no_projection": "Proiekziorik ez",
-    "cover_uncertain": "Lurzoruaren estaldura ziurgabea: berrikusi labore-zikloak"
+    "cover_uncertain": "Lurzoruaren estaldura ziurgabea: berrikusi labore-zikloak",
+    "assumed": "Adierazitako hipotesi bat erabiltzen da"
   },
   "gap": {
     "baseline_soil_sampling": "Hasierako lurzoru-laginketa",

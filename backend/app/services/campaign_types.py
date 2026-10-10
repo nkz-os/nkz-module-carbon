@@ -73,7 +73,7 @@ class BalingEvent:
 @dataclass(frozen=True)
 class IrrigationEvent:
     day: date
-    water_m3_ha: Optional[float]
+    water_mm: Optional[float]
 
 
 @dataclass(frozen=True)

@@ -80,12 +80,12 @@
   },
   "missing": {
     "weather": "Meteorología diaria incompleta",
-    "ndvi": "Faltan imágenes de satélite (NDVI) en días de cultivo",
+    "ndvi": "Faltan escenas NDVI en días de cultivo",
     "soil": "No hay datos de suelo de la parcela",
     "soil_soc": "Carbono orgánico o densidad aparente del suelo no válidos",
     "soil_clay": "Arcilla del suelo no válida",
     "crop_params": "Cultivo sin parámetros calibrados",
-    "vi_type": "El cultivo necesita el índice OSAVI, que no está disponible",
+    "vi_type": "El cultivo está calibrado con un índice de vegetación que la plataforma no publica",
     "harvest_export": "Falta el peso, la humedad o la superficie de la cosecha",
     "residue_removal": "Empacado sin fracción de paja retirada declarada",
     "organic_c": "Abonado orgánico sin carbono declarado",
@@ -96,7 +96,9 @@
     "cycles": "Sin ciclos de cultivo: se cuenta como suelo desnudo",
     "cycle_biomass": "Faltan datos de parte del ciclo de cultivo",
     "complete_campaign": "Aún no hay una campaña completa calculada",
-    "cover_mismatch": "El NDVI ve vegetación en días sin ciclo de cultivo"
+    "cover_mismatch": "El NDVI ve vegetación en días sin ciclo de cultivo",
+    "osavi": "Faltan escenas OSAVI en días de cultivo leñoso: calcule OSAVI en Vegetación",
+    "cycle_lifecycle": "Ciclo de vida no registrado: se supone perenne por la especie"
   },
   "effect": {
     "no_balance": "No se puede calcular la campaña",
@@ -108,7 +110,8 @@
     "uses_planned_date": "Se usa la fecha planificada",
     "bare_soil_assumed": "Se cuenta como suelo desnudo",
     "no_projection": "Sin proyección",
-    "cover_uncertain": "Cubierta del suelo incierta: revise los ciclos de cultivo"
+    "cover_uncertain": "Cubierta del suelo incierta: revise los ciclos de cultivo",
+    "assumed": "Se usa un supuesto declarado"
   },
   "gap": {
     "baseline_soil_sampling": "Muestreo de suelo al inicio",

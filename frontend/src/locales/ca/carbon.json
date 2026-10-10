@@ -80,12 +80,12 @@
   },
   "missing": {
     "weather": "Meteorologia diària incompleta",
-    "ndvi": "Falten imatges de satèl·lit (NDVI) en dies de cultiu",
+    "ndvi": "Falten escenes NDVI en dies de cultiu",
     "soil": "No hi ha dades de sòl de la parcel·la",
     "soil_soc": "Carboni orgànic o densitat aparent del sòl no vàlids",
     "soil_clay": "Argila del sòl no vàlida",
     "crop_params": "Cultiu sense paràmetres calibrats",
-    "vi_type": "El cultiu necessita l'índex OSAVI, que no està disponible",
+    "vi_type": "El cultiu està calibrat amb un índex de vegetació que la plataforma no publica",
     "harvest_export": "Falta el pes, la humitat o la superfície de la collita",
     "residue_removal": "Embalatge sense fracció de palla retirada declarada",
     "organic_c": "Adobat orgànic sense carboni declarat",
@@ -96,7 +96,9 @@
     "cycles": "Sense cicles de cultiu: es compta com a sòl nu",
     "cycle_biomass": "Falten dades d'una part del cicle de cultiu",
     "complete_campaign": "Encara no hi ha cap campanya completa calculada",
-    "cover_mismatch": "L'NDVI veu vegetació en dies sense cicle de cultiu"
+    "cover_mismatch": "L'NDVI veu vegetació en dies sense cicle de cultiu",
+    "osavi": "Falten escenes OSAVI en dies de cultiu llenyós: calculeu OSAVI a Vegetació",
+    "cycle_lifecycle": "Cicle de vida no registrat: se suposa perenne per l'espècie"
   },
   "effect": {
     "no_balance": "No es pot calcular la campanya",
@@ -108,7 +110,8 @@
     "uses_planned_date": "S'utilitza la data planificada",
     "bare_soil_assumed": "Es compta com a sòl nu",
     "no_projection": "Sense projecció",
-    "cover_uncertain": "Coberta del sòl incerta: reviseu els cicles de cultiu"
+    "cover_uncertain": "Coberta del sòl incerta: reviseu els cicles de cultiu",
+    "assumed": "S'utilitza un supòsit declarat"
   },
   "gap": {
     "baseline_soil_sampling": "Mostreig de sòl a l'inici",

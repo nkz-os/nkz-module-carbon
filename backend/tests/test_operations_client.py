@@ -49,7 +49,7 @@ async def test_harvest_and_fertilization(monkeypatch):
             _op("fertilization", "2026-03-02", fertilizerRate=200),
             _op("tillage", "2026-02-01", tillageType="ploughing"),
             _op("baling", "2026-07-05"),
-            _op("irrigation", "2026-06-10", waterPerHectare=300),
+            _op("irrigation", "2026-06-10", waterPerHectare=300000),
             _op("sowing", "2026-01-10", status="planned"),
             _op("harvesting", "2025-07-01", harvestedWeight=1, moisture=1)]
     fake = FakeOrion(ents)
@@ -57,6 +57,7 @@ async def test_harvest_and_fertilization(monkeypatch):
     ops = await oc.fetch_operations("urn:ngsi-ld:AgriParcel:p", "t", date(2026, 1, 1), date(2026, 12, 31), area_ha=10.0)
     h, f, t, b, missing = ops.harvests, ops.fertilizations, ops.tillages, ops.balings, ops.missing
     assert ops.irrigations[0].day == date(2026, 6, 10)
+    assert ops.irrigations[0].water_mm == pytest.approx(30.0)  # field-operations records L/ha
     assert fake.queries[0] == 'hasAgriParcel=="urn:ngsi-ld:AgriParcel:p";status=="completed"'
     assert len(h) == 2 and h[0].exported_c_tC_ha == pytest.approx(30000 * 0.88 * 0.45 / 1000 / 10)
     assert h[1].exported_c_tC_ha is None

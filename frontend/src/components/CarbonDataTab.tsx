@@ -46,7 +46,7 @@ const CarbonDataTab: React.FC<CarbonDataTabProps> = ({ row }) => {
       case 'tillage':
         return o.tillage_type ? t(`data.tillage.${o.tillage_type}`, { defaultValue: o.tillage_type }) : DASH;
       case 'irrigation':
-        return o.water_m3_ha === null || o.water_m3_ha === undefined ? DASH : `${fmt(o.water_m3_ha, 0)} m³/ha`;
+        return o.water_mm === null || o.water_mm === undefined ? DASH : `${fmt(o.water_mm, 1)} mm`;
       default:
         return '';
     }

@@ -80,12 +80,12 @@
   },
   "missing": {
     "weather": "Météo quotidienne incomplète",
-    "ndvi": "Images satellite (NDVI) manquantes sur des jours de culture",
+    "ndvi": "Scènes NDVI manquantes sur des jours de culture",
     "soil": "Aucune donnée de sol pour la parcelle",
     "soil_soc": "Carbone organique ou densité apparente du sol non valides",
     "soil_clay": "Teneur en argile du sol non valide",
     "crop_params": "Culture sans paramètres calibrés",
-    "vi_type": "La culture nécessite l'indice OSAVI, non disponible",
+    "vi_type": "La culture est calibrée sur un indice de végétation que la plateforme ne publie pas",
     "harvest_export": "Poids, humidité ou surface de la récolte manquants",
     "residue_removal": "Pressage sans part de paille exportée déclarée",
     "organic_c": "Fertilisation organique sans carbone déclaré",
@@ -96,7 +96,9 @@
     "cycles": "Aucun cycle de culture : compté comme sol nu",
     "cycle_biomass": "Données manquantes sur une partie du cycle",
     "complete_campaign": "Aucune campagne complète calculée",
-    "cover_mismatch": "Le NDVI voit de la végétation sur des jours sans cycle de culture"
+    "cover_mismatch": "Le NDVI voit de la végétation sur des jours sans cycle de culture",
+    "osavi": "Scènes OSAVI manquantes sur des jours de culture ligneuse : calculez OSAVI dans Végétation",
+    "cycle_lifecycle": "Cycle de vie non enregistré : pérenne déduit de l'espèce"
   },
   "effect": {
     "no_balance": "La campagne ne peut pas être calculée",
@@ -108,7 +110,8 @@
     "uses_planned_date": "La date prévue est utilisée",
     "bare_soil_assumed": "Compté comme sol nu",
     "no_projection": "Pas de projection",
-    "cover_uncertain": "Couverture du sol incertaine : vérifiez les cycles de culture"
+    "cover_uncertain": "Couverture du sol incertaine : vérifiez les cycles de culture",
+    "assumed": "Une hypothèse déclarée est utilisée"
   },
   "gap": {
     "baseline_soil_sampling": "Échantillonnage du sol au départ",

@@ -12,7 +12,7 @@ from typing import Any, Optional
 from app.common.orion import get_orion_client
 from app.db.database import insert_carbon_calculation
 from app.ngsild.campaign_entities import build_campaign_assessment, build_campaign_stock, stock_state
-from app.platform.crop_client import canonical_parcel_urn, fetch_parcel_coordinates, parcel_short
+from app.platform.crop_client import carbon_species_key, canonical_parcel_urn, fetch_parcel_coordinates, parcel_short
 from app.platform.crop_cycles_client import fetch_cycles
 from app.platform.daily_weather_client import fetch_daily_weather
 from app.platform.eo_ndvi_client import fetch_vi_series
@@ -27,7 +27,7 @@ from app.services.campaign_types import (
 from app.services.campaign_reports import (
     build_monitoring_report, combine_months, is_complete, months_from_row, project_soc,
 )
-from app.services.crop_params import resolve_crop_params
+from app.services.crop_params import WOODY_SPECIES, resolve_crop_params
 from app.services.roth_c_model import RothCState, run_months, weihermuller_pools
 
 logger = logging.getLogger(__name__)
@@ -206,9 +206,14 @@ async def run_campaign(
         if species not in params_by_species:
             params_by_species[species] = await resolve_crop_params(species, lat, lon)
             missing.extend(params_by_species[species][1])
+        lifecycle = str(s.get("lifecycle") or "unknown")
+        if lifecycle == "unknown" and carbon_species_key(species) in WOODY_SPECIES:
+            lifecycle = "perennial"
+            missing.append(Missing("cycle_lifecycle", f"{s.get('crop_id')}: lifecycle not recorded, perennial inferred "
+                                   f"from the species", "assumed"))
         cycles.append(CycleSpan(
             crop_id=str(s.get("crop_id")), species=species, role=str(s.get("role") or "main_crop"),
-            lifecycle=str(s.get("lifecycle") or "unknown"), start=s["_start"], end=s["_end"],
+            lifecycle=lifecycle, start=s["_start"], end=s["_end"],
             start_provenance=str((s.get("start") or {}).get("provenance") or "unknown"),
             end_provenance=(s.get("end") or {}).get("provenance"),
             campaign_label=s.get("campaign_label"), params=params_by_species[species][0],

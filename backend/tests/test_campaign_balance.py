@@ -274,7 +274,7 @@ def test_woody_cycle_uses_its_osavi_series():
 
 def test_irrigation_comes_from_operations_unless_declared():
     from app.services.campaign_types import IrrigationEvent
-    irr = (IrrigationEvent(date(2026, 6, 10), 300.0),)
+    irr = (IrrigationEvent(date(2026, 6, 10), 30.0),)
     b = compute_campaign_balance(_inp(irrigations=irr))
     assert b.inputs_summary["irrigated"] == {"value": True, "source": "operations"}
     decl = replace(NO_DECLARED_MANAGEMENT, irrigated=False)
@@ -299,3 +299,10 @@ def test_unknown_irrigation_is_declared_as_rainfed_assumption():
     b = compute_campaign_balance(_inp(fertilizations=fert))
     assert b.tier == 3 and b.inputs_summary["irrigated"] == {"value": None, "source": None}
     assert any("rainfed" in a for a in b.assumptions)
+
+
+def test_missing_osavi_is_named_as_osavi():
+    olive = CropParams(lue_gC_MJ=0.9, fapar_a=1.40, fapar_b=-0.24, vi_type="OSAVI", root_fraction=0.20, source="table")
+    cyc = CycleSpan("o1", "OLVEU", "main_crop", "perennial", date(2026, 1, 1), None, "declared", None, None, olive)
+    b = compute_campaign_balance(_inp(cycles=(cyc,), harvests=()))   # NDVI present, OSAVI absent
+    assert "osavi" in _items(b) and "ndvi" not in _items(b)

@@ -98,7 +98,7 @@ export interface OperationUsed {
   n_kg_ha?: number | null;
   organic?: boolean;
   tillage_type?: string;
-  water_m3_ha?: number | null;
+  water_mm?: number | null;
 }
 
 /** What entered the balance and where it came from. */

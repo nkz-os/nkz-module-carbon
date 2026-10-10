@@ -30,7 +30,7 @@ from app.services.roth_c_model import (
     RothCMonth, RothCState, pan_evap_from_et0, run_months, weihermuller_pools,
 )
 
-ENGINE_VERSION = "3.0.0"
+ENGINE_VERSION = "3.1.0"
 
 PAR_FRACTION = 0.48          # PAR share of global radiation
 CUE = 0.5                    # NPP / GPP
@@ -148,6 +148,7 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
     cover_by_month: dict[int, int] = defaultdict(int)
     gpp_g = npp_g = 0.0
     cycle_days_period = computed_days_period = 0
+    no_vi_days: dict[str, int] = defaultdict(int)
 
     for d in all_days:
         c = covering(d)
@@ -163,6 +164,8 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
         w = by_day.get(d)
         v = vi_by_index.get(c.params.vi_type, {}).get(d) if c.params is not None else None
         if c.params is None or v is None or w is None or w.radiation_mj_m2 is None:
+            if c.params is not None and v is None and in_period:
+                no_vi_days[c.params.vi_type] += 1
             continue
         fapar = max(0.0, min(FAPAR_MAX, c.params.fapar_a * v + c.params.fapar_b))
         gpp = PAR_FRACTION * w.radiation_mj_m2 * fapar * c.params.lue_gC_MJ
@@ -186,12 +189,11 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
                                "cover_uncertain"))
 
     tier1_coverage = computed_days_period / cycle_days_period if cycle_days_period else 1.0
-    if cycle_days_period and computed_days_period < cycle_days_period:
-        no_params = sum(a.in_period for a in accs.values() if a.span.params is None)
-        no_data = cycle_days_period - computed_days_period - no_params
-        if no_data:
-            missing.append(Missing("ndvi", f"{no_data} cycle days without a vegetation index within {MAX_VI_GAP_DAYS} days",
-                                   "tier1_partial"))
+    # Days without the index each cycle is calibrated on, named per index so the
+    # user knows which one to compute (woody crops need OSAVI, not NDVI).
+    for vi_type, n in sorted(no_vi_days.items()):
+        missing.append(Missing(vi_type.lower(), f"{n} cycle days without {vi_type} within {MAX_VI_GAP_DAYS} days",
+                               "tier1_partial"))
 
     # -- cycle closures ------------------------------------------------------
     harvests_of = _assign_events(inp.harvests, cycles)
@@ -476,7 +478,7 @@ def _inputs_summary(inp: CampaignInputs, period_days: list, through: Optional[da
     for b in inp.balings:
         ops.append({"type": "baling", "date": b.day.isoformat()})
     for i in inp.irrigations:
-        ops.append({"type": "irrigation", "date": i.day.isoformat(), "water_m3_ha": i.water_m3_ha})
+        ops.append({"type": "irrigation", "date": i.day.isoformat(), "water_mm": i.water_mm})
     ops.sort(key=lambda o: (o["date"], o["type"]))
     soil = None
     if inp.soil is not None:
