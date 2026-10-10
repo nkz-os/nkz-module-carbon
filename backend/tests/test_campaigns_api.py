@@ -140,3 +140,20 @@ def test_scenario_recalculate_route_is_gone():
     from app.api import scenarios
     paths = {r.path for r in scenarios.router.routes}
     assert not any(p.endswith("/recalculate") for p in paths)
+
+
+def test_management_save_stores_only_what_was_declared(monkeypatch):
+    from app.api import management
+    app = FastAPI()
+    app.include_router(management.router)
+    saved = {}
+
+    class O:
+        async def replace_entity(self, entity, tenant_id):
+            saved.update(entity)
+            return entity
+    monkeypatch.setattr("app.common.orion.get_orion_client", lambda: O())
+    r = TestClient(app).post("/api/carbon/parcels/abc/management", json={"irrigated": True}, headers=H)
+    assert r.status_code == 201
+    keys = set(saved) - {"id", "type", "@context", "hasAgriParcel", "lastUpdated", "source"}
+    assert keys == {"irrigated"}

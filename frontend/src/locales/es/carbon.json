@@ -19,7 +19,6 @@
   "residues_removed": "Residuos Retirados",
   "cover_crop_months": "Cubierta Vegetal (meses/ano)",
   "organic_amendments": "Enmiendas Organicas (tC/ha/ano)",
-  "n_fertilizer": "Fertilizante N (kgN/ha/ano)",
   "irrigated": "Regadio",
   "save": "Guardar",
   "saving": "Guardando...",
@@ -139,5 +138,15 @@
   "weather_worker": "Servicio Meteorológico",
   "weather_sensor": "Sensor de Campo",
   "no_sensors": "No hay sensores disponibles",
-  "overview": "Resumen"
+  "overview": "Resumen",
+  "harvest_export_pct": "Exportado en la cosecha (% de la parte aérea)",
+  "residue_removal_pct": "Restos retirados, p. ej. paja empacada (%)",
+  "n_synthetic": "N mineral aplicado (kgN/ha/año)",
+  "n_organic": "N orgánico aplicado (kgN/ha/año)",
+  "soil_lab_soc": "COS de laboratorio, 0–30 cm (tC/ha)",
+  "soil_lab_clay": "Arcilla de laboratorio (%)",
+  "not_declared": "Sin declarar",
+  "yes": "Sí",
+  "no": "No",
+  "declare_hint": "Deje vacío lo que no sepa: el cálculo solo usa lo que declare aquí."
 }

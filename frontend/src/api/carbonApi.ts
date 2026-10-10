@@ -99,19 +99,21 @@ export interface ProjectionData {
   missing: MissingItem[];
 }
 
+/** Farmer-declared management. Absent = not declared; nothing is defaulted. */
 export interface ManagementData {
-  tillage_type?: string;
-  residues_removed?: boolean;
-  cover_crop_months?: number;
-  organic_amendments_tC_ha_yr?: number;
-  n_synthetic_kgN_ha_yr?: number;
-  n_organic_kgN_ha_yr?: number;
-  irrigated?: boolean;
+  tillage_type?: string | null;
+  residues_removed?: boolean | null;
+  residue_removal_fraction?: number | null;
+  cover_crop_months?: number | null;
+  organic_amendments_tC_ha_yr?: number | null;
+  n_synthetic_kgN_ha_yr?: number | null;
+  n_organic_kgN_ha_yr?: number | null;
+  irrigated?: boolean | null;
   soil_lab_soc_tC_ha?: number | null;
   soil_lab_clay_pct?: number | null;
-  harvest_export_fraction?: number;
-  weather_source?: string;
-  weather_sensor_id?: string;
+  harvest_export_fraction?: number | null;
+  weather_source?: string | null;
+  weather_sensor_id?: string | null;
 }
 
 export interface SensorInfo {

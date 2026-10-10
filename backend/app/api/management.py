@@ -44,10 +44,11 @@ async def save_management(
     entity = build_management_practice(
         tenant_id=tenant_id,
         parcel_id=entity_id,
-        practices=body.model_dump(),
+        practices=body.model_dump(exclude_none=True),
     )
     orion = get_orion_client()
-    await orion.upsert_entity(entity, tenant_id)
+    # Replace, not merge: a field the farmer cleared must stop being declared.
+    await orion.replace_entity(entity, tenant_id)
     logger.info(
         "Management saved for tenant=%s parcel=%s tillage=%s",
         tenant_id, entity_id, body.tillage_type,

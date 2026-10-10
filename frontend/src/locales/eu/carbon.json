@@ -19,7 +19,6 @@
   "residues_removed": "Hondakinak Kenduta",
   "cover_crop_months": "Estal-Laborea (hile/urte)",
   "organic_amendments": "Zuzenketa Organikoak (tC/ha/urte)",
-  "n_fertilizer": "N Ongarria (kgN/ha/urte)",
   "irrigated": "Lur ureztatua",
   "save": "Gorde",
   "saving": "Gordetzen...",
@@ -139,5 +138,15 @@
   "weather_worker": "Eguraldi Zerbitzua",
   "weather_sensor": "Landako Sentsorea",
   "no_sensors": "Ez dago sentsorerik",
-  "overview": "Laburpena"
+  "overview": "Laburpena",
+  "harvest_export_pct": "Uztan esportatua (lurrazaleko zatiaren %)",
+  "residue_removal_pct": "Kendutako hondarrak, adib. fardo-lastoa (%)",
+  "n_synthetic": "Aplikatutako N minerala (kgN/ha/urte)",
+  "n_organic": "Aplikatutako N organikoa (kgN/ha/urte)",
+  "soil_lab_soc": "Laborategiko LOK, 0–30 cm (tC/ha)",
+  "soil_lab_clay": "Laborategiko buztina (%)",
+  "not_declared": "Adierazi gabe",
+  "yes": "Bai",
+  "no": "Ez",
+  "declare_hint": "Utzi hutsik ez dakizuna: kalkuluak hemen adierazten duzuna bakarrik erabiltzen du."
 }

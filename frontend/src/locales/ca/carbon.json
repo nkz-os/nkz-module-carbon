@@ -19,7 +19,6 @@
   "residues_removed": "Residus Retirats",
   "cover_crop_months": "Coberta Vegetal (mesos/any)",
   "organic_amendments": "Esmenes Organiques (tC/ha/any)",
-  "n_fertilizer": "Fertilitzant N (kgN/ha/any)",
   "irrigated": "Regadiu",
   "save": "Desar",
   "saving": "Desant...",
@@ -139,5 +138,15 @@
   "weather_worker": "Servei Meteorològic",
   "weather_sensor": "Sensor de Camp",
   "no_sensors": "No hi ha sensors disponibles",
-  "overview": "Resum"
+  "overview": "Resum",
+  "harvest_export_pct": "Exportat a la collita (% de la part aèria)",
+  "residue_removal_pct": "Restes retirades, p. ex. palla embalada (%)",
+  "n_synthetic": "N mineral aplicat (kgN/ha/any)",
+  "n_organic": "N orgànic aplicat (kgN/ha/any)",
+  "soil_lab_soc": "COS de laboratori, 0–30 cm (tC/ha)",
+  "soil_lab_clay": "Argila de laboratori (%)",
+  "not_declared": "Sense declarar",
+  "yes": "Sí",
+  "no": "No",
+  "declare_hint": "Deixeu buit el que no sapigueu: el càlcul només fa servir el que declareu aquí."
 }

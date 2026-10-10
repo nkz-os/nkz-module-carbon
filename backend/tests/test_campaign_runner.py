@@ -269,3 +269,26 @@ async def test_chain_needs_a_tier2_previous_assessment(env):
         "dataTier": {"type": "Property", "value": 1}}
     b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
     assert b.initial_state_source == "soil"
+
+
+def test_management_model_has_no_silent_defaults():
+    from app.models.management import ManagementInput
+    m = ManagementInput()
+    assert all(v is None for v in m.model_dump().values())
+
+
+@pytest.mark.asyncio
+async def test_form_saved_for_irrigation_only_declares_nothing_else(env, monkeypatch):
+    store, _ = env
+    store.entities[("t1", "urn:ngsi-ld:ManagementPractice:t1:abc")] = {
+        "id": "urn:ngsi-ld:ManagementPractice:t1:abc", "type": "ManagementPractice",
+        "irrigated": {"type": "Property", "value": True}}
+
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)   # harvest recorded: reaches Tier 2
+    assert b.tier == 2 and "fertilizer_n" in {m.item for m in b.missing}   # no invented zero N
+
+    async def ops(urn, tenant, start, end, area):
+        return [], [], [], [], []   # no harvest record
+    monkeypatch.setattr(cr, "fetch_operations", ops)
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    assert "harvest_export" in {m.item for m in b.missing}   # no invented 90 % export

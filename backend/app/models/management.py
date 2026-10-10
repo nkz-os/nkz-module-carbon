@@ -1,7 +1,7 @@
-"""Management input schema for Tier 2/3 carbon calculations.
+"""Management practices declared by the farmer.
 
-Captures farmer-declared or remotely-sensed management practices used
-to parameterise RothC (Tier 2) and GHG (Tier 3) models.
+Every field is optional and None means "not declared". Nothing here is a
+default: the balance only uses what the farmer actually entered.
 """
 
 from typing import Optional
@@ -10,54 +10,40 @@ from pydantic import BaseModel, Field
 
 
 class ManagementInput(BaseModel):
-    """Farmer-declared management practices.
-
-    Defaults represent conventional tillage, no cover crop, no irrigation,
-    synthetic-only fertiliser at zero rate, and full residue retention.
-    """
-    weather_source: str = Field(
-        default="api",
-        description='"api" for weather-api-service (canonical), "sensor" for on-farm sensor',
-    )
-    weather_sensor_id: Optional[str] = Field(
+    """Farmer-declared management practices (all optional)."""
+    weather_source: Optional[str] = Field(
         default=None,
-        description="AgriSensor entity ID when weather_source='sensor'",
+        description='Legacy selector; campaign weather always comes from the parcel daily series',
     )
-    residues_removed: bool = False
-    residue_removal_fraction: float = Field(
-        default=0.0, ge=0.0, le=1.0,
-        description="Fraction of crop residues removed from the field",
+    weather_sensor_id: Optional[str] = Field(default=None, description="Legacy sensor id")
+    residues_removed: Optional[bool] = None
+    residue_removal_fraction: Optional[float] = Field(
+        default=None, ge=0.0, le=1.0,
+        description="Share of the crop residue removed (e.g. baled straw)",
     )
-    tillage_type: str = Field(
-        default="conventional",
+    tillage_type: Optional[str] = Field(
+        default=None,
         description='One of: "conventional", "reduced", "no_till"',
     )
-    cover_crop_months: int = Field(
-        default=0, ge=0, le=12,
-        description="Months per year with active cover crop",
+    cover_crop_months: Optional[int] = Field(default=None, ge=0, le=12)
+    organic_amendments_tC_ha_yr: Optional[float] = Field(
+        default=None, ge=0.0,
+        description="Carbon in organic amendments (manure/compost), tC/ha/yr",
     )
-    organic_amendments_tC_ha_yr: float = Field(
-        default=0.0, ge=0.0,
-        description="Organic amendments (manure/compost) in tC/ha/yr",
+    n_synthetic_kgN_ha_yr: Optional[float] = Field(
+        default=None, ge=0.0, description="Synthetic N applied, kgN/ha/yr (0 = none applied)",
     )
-    n_synthetic_kgN_ha_yr: float = Field(
-        default=0.0, ge=0.0,
-        description="Synthetic N fertiliser rate in kgN/ha/yr",
+    n_organic_kgN_ha_yr: Optional[float] = Field(
+        default=None, ge=0.0, description="Organic N applied, kgN/ha/yr (0 = none applied)",
     )
-    n_organic_kgN_ha_yr: float = Field(
-        default=0.0, ge=0.0,
-        description="Organic N fertiliser rate in kgN/ha/yr",
-    )
-    irrigated: bool = False
-    harvest_export_fraction: float = Field(
-        default=0.9, ge=0.0, le=1.0,
-        description="Fraction of above-ground biomass exported at harvest",
+    irrigated: Optional[bool] = None
+    harvest_export_fraction: Optional[float] = Field(
+        default=None, ge=0.0, le=1.0,
+        description="Share of the above-ground biomass exported at harvest",
     )
     soil_lab_soc_tC_ha: Optional[float] = Field(
-        default=None,
-        description="Lab-measured total SOC in tC/ha (0-30 cm)",
+        default=None, gt=0.0, description="Lab-measured SOC stock, tC/ha (0-30 cm)",
     )
     soil_lab_clay_pct: Optional[float] = Field(
-        default=None, ge=0.0, le=100.0,
-        description="Lab-measured clay content in percent",
+        default=None, ge=0.0, le=100.0, description="Lab-measured clay content, %",
     )

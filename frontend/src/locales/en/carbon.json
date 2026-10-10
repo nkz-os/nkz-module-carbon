@@ -19,7 +19,6 @@
   "residues_removed": "Residues Removed",
   "cover_crop_months": "Cover Crop (months/year)",
   "organic_amendments": "Organic Amendments (tC/ha/yr)",
-  "n_fertilizer": "N Fertilizer (kgN/ha/yr)",
   "irrigated": "Irrigated",
   "save": "Save",
   "saving": "Saving...",
@@ -139,5 +138,15 @@
   "weather_worker": "Weather Service",
   "weather_sensor": "Field Sensor",
   "no_sensors": "No sensors available",
-  "overview": "Overview"
+  "overview": "Overview",
+  "harvest_export_pct": "Exported at harvest (% of above-ground biomass)",
+  "residue_removal_pct": "Residue removed, e.g. baled straw (%)",
+  "n_synthetic": "Mineral N applied (kgN/ha/yr)",
+  "n_organic": "Organic N applied (kgN/ha/yr)",
+  "soil_lab_soc": "Lab SOC, 0–30 cm (tC/ha)",
+  "soil_lab_clay": "Lab clay (%)",
+  "not_declared": "Not declared",
+  "yes": "Yes",
+  "no": "No",
+  "declare_hint": "Leave empty what you do not know: the balance only uses what you declare here."
 }

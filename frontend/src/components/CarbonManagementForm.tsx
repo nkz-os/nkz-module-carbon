@@ -1,14 +1,28 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from '@nekazari/sdk';
 import { Select } from '@nekazari/ui-kit';
-import { saveManagement, fetchAvailableSensors } from '../api/carbonApi';
+import { saveManagement, fetchAvailableSensors, fetchManagement } from '../api/carbonApi';
 import type { ManagementData, SensorInfo } from '../api/carbonApi';
+import { colors } from './styles';
 
 interface CarbonManagementFormProps {
   entityId: string;
-  initialData?: Partial<ManagementData>;
   onSaved?: () => void;
 }
+
+/** Raw form values: '' means "not declared" and is never sent. */
+type Draft = Record<string, string>;
+
+const NUMBER_FIELDS: Array<{ key: keyof ManagementData; labelKey: string; scale?: number; min: number; max?: number; step: number }> = [
+  { key: 'harvest_export_fraction', labelKey: 'harvest_export_pct', scale: 100, min: 0, max: 100, step: 1 },
+  { key: 'residue_removal_fraction', labelKey: 'residue_removal_pct', scale: 100, min: 0, max: 100, step: 1 },
+  { key: 'organic_amendments_tC_ha_yr', labelKey: 'organic_amendments', min: 0, step: 0.1 },
+  { key: 'n_synthetic_kgN_ha_yr', labelKey: 'n_synthetic', min: 0, step: 1 },
+  { key: 'n_organic_kgN_ha_yr', labelKey: 'n_organic', min: 0, step: 1 },
+  { key: 'soil_lab_soc_tC_ha', labelKey: 'soil_lab_soc', min: 0, step: 0.1 },
+  { key: 'soil_lab_clay_pct', labelKey: 'soil_lab_clay', min: 0, max: 100, step: 0.1 },
+  { key: 'cover_crop_months', labelKey: 'cover_crop_months', min: 0, max: 12, step: 1 },
+];
 
 const TILLAGE_OPTIONS = [
   { value: 'conventional', labelKey: 'tillage_conventional' },
@@ -21,122 +35,89 @@ const WEATHER_SOURCE_OPTIONS = [
   { value: 'sensor', labelKey: 'weather_sensor' },
 ];
 
-const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
-  entityId,
-  initialData,
-  onSaved,
-}) => {
+function toDraft(data: ManagementData): Draft {
+  const d: Draft = {};
+  for (const f of NUMBER_FIELDS) {
+    const v = data[f.key] as number | null | undefined;
+    d[f.key] = v === null || v === undefined ? '' : String(f.scale ? Math.round(v * f.scale * 100) / 100 : v);
+  }
+  d.tillage_type = data.tillage_type ?? '';
+  d.irrigated = data.irrigated === undefined || data.irrigated === null ? '' : data.irrigated ? 'yes' : 'no';
+  d.residues_removed = data.residues_removed === undefined || data.residues_removed === null ? '' : data.residues_removed ? 'yes' : 'no';
+  d.weather_source = data.weather_source ?? '';
+  d.weather_sensor_id = data.weather_sensor_id ?? '';
+  return d;
+}
+
+function fromDraft(d: Draft): ManagementData {
+  const out: ManagementData = {};
+  for (const f of NUMBER_FIELDS) {
+    const raw = (d[f.key] ?? '').trim();
+    if (raw === '') continue;
+    const n = Number(raw);
+    if (Number.isNaN(n)) continue;
+    (out as Record<string, number>)[f.key] = f.scale ? n / f.scale : n;
+  }
+  if (d.tillage_type) out.tillage_type = d.tillage_type;
+  if (d.irrigated) out.irrigated = d.irrigated === 'yes';
+  if (d.residues_removed) out.residues_removed = d.residues_removed === 'yes';
+  if (d.weather_source) out.weather_source = d.weather_source;
+  if (d.weather_source === 'sensor' && d.weather_sensor_id) out.weather_sensor_id = d.weather_sensor_id;
+  return out;
+}
+
+const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({ entityId, onSaved }) => {
   const { t } = useTranslation('carbon');
-
-  const [tillageType, setTillageType] = useState(initialData?.tillage_type || 'conventional');
-  const [residuesRemoved, setResiduesRemoved] = useState(initialData?.residues_removed || false);
-  const [coverCropMonths, setCoverCropMonths] = useState(initialData?.cover_crop_months ?? 0);
-  const [organicAmendments, setOrganicAmendments] = useState(
-    initialData?.organic_amendments_tC_ha_yr ?? 0,
-  );
-  const [nFertilizerSynthetic, setNFertilizerSynthetic] = useState(
-    initialData?.n_synthetic_kgN_ha_yr ?? 0,
-  );
-  const [nFertilizerOrganic, setNFertilizerOrganic] = useState(
-    initialData?.n_organic_kgN_ha_yr ?? 0,
-  );
-  const [irrigated, setIrrigated] = useState(initialData?.irrigated || false);
-  const [weatherSource, setWeatherSource] = useState(initialData?.weather_source || 'weather_worker');
-  const [weatherSensorId, setWeatherSensorId] = useState(initialData?.weather_sensor_id || '');
+  const [draft, setDraft] = useState<Draft>(() => toDraft({}));
   const [sensors, setSensors] = useState<SensorInfo[]>([]);
-
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Fetch available sensors when weather source changes to sensor
+  // Start from what is stored: saving must never re-declare values the farmer did not enter.
   useEffect(() => {
-    if (weatherSource === 'sensor' && entityId) {
-      fetchAvailableSensors(entityId)
-        .then(setSensors)
-        .catch(() => setSensors([]));
-    }
-  }, [weatherSource, entityId]);
+    if (!entityId) return;
+    fetchManagement(entityId).then((m) => setDraft(toDraft(m))).catch(() => setDraft(toDraft({})));
+  }, [entityId]);
 
-  // Sync initial data
   useEffect(() => {
-    if (initialData) {
-      if (initialData.tillage_type) setTillageType(initialData.tillage_type);
-      if (initialData.residues_removed !== undefined) setResiduesRemoved(initialData.residues_removed);
-      if (initialData.cover_crop_months !== undefined) setCoverCropMonths(initialData.cover_crop_months);
-      if (initialData.organic_amendments_tC_ha_yr !== undefined)
-        setOrganicAmendments(initialData.organic_amendments_tC_ha_yr);
-      if (initialData.n_synthetic_kgN_ha_yr !== undefined)
-        setNFertilizerSynthetic(initialData.n_synthetic_kgN_ha_yr);
-      if (initialData.n_organic_kgN_ha_yr !== undefined)
-        setNFertilizerOrganic(initialData.n_organic_kgN_ha_yr);
-      if (initialData.irrigated !== undefined) setIrrigated(initialData.irrigated);
-      if (initialData.weather_source) setWeatherSource(initialData.weather_source);
-      if (initialData.weather_sensor_id) setWeatherSensorId(initialData.weather_sensor_id);
+    if (draft.weather_source === 'sensor' && entityId) {
+      fetchAvailableSensors(entityId).then(setSensors).catch(() => setSensors([]));
     }
-  }, [initialData]);
+  }, [draft.weather_source, entityId]);
+
+  const set = (key: string, value: string) => setDraft((d) => ({ ...d, [key]: value }));
 
   const handleSave = useCallback(async () => {
     setSaveState('saving');
     setErrorMsg(null);
     try {
-      const data: ManagementData = {
-        tillage_type: tillageType,
-        residues_removed: residuesRemoved,
-        cover_crop_months: coverCropMonths,
-        organic_amendments_tC_ha_yr: organicAmendments,
-        n_synthetic_kgN_ha_yr: nFertilizerSynthetic,
-        n_organic_kgN_ha_yr: nFertilizerOrganic,
-        irrigated,
-        weather_source: weatherSource,
-        weather_sensor_id: weatherSource === 'sensor' ? weatherSensorId : undefined,
-      };
-      await saveManagement(entityId, data);
+      await saveManagement(entityId, fromDraft(draft));
       setSaveState('saved');
       onSaved?.();
-      // Reset save state after 2s
       setTimeout(() => setSaveState('idle'), 2000);
     } catch (err) {
       setSaveState('error');
       setErrorMsg(err instanceof Error ? err.message : t('error'));
     }
-  }, [
-    entityId,
-    tillageType,
-    residuesRemoved,
-    coverCropMonths,
-    organicAmendments,
-    nFertilizerSynthetic,
-    nFertilizerOrganic,
-    irrigated,
-    weatherSource,
-    weatherSensorId,
-    onSaved,
-    t,
-  ]);
+  }, [entityId, draft, onSaved, t]);
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
     padding: '8px 10px',
-    border: '1px solid #D1D5DB',
+    border: `1px solid ${colors.gray300}`,
     borderRadius: '6px',
     fontSize: '13px',
-    color: '#374151',
-    backgroundColor: '#FFFFFF',
+    color: colors.textPrimary,
+    backgroundColor: colors.bgSurface,
     boxSizing: 'border-box',
   };
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: '12px',
-    fontWeight: 500,
-    color: '#6B7280',
-    marginBottom: '4px',
-  };
-
-  const rowStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '4px',
-  };
+  const labelStyle: React.CSSProperties = { fontSize: '12px', fontWeight: 500, color: colors.textSecondary, marginBottom: '4px' };
+  const rowStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '4px' };
+  const triState = [
+    { value: '', label: t('not_declared') },
+    { value: 'yes', label: t('yes') },
+    { value: 'no', label: t('no') },
+  ];
 
   return (
     <form
@@ -144,143 +125,66 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
         e.preventDefault();
         handleSave();
       }}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
-        maxWidth: '100%',
-      }}
+      style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}
     >
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '12px',
-        }}
-      >
-        {/* Tillage type */}
+      <div style={{ fontSize: '12px', color: colors.textSecondary }}>{t('declare_hint')}</div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px' }}>
+        {NUMBER_FIELDS.map((f) => (
+          <div key={f.key} style={rowStyle}>
+            <label style={labelStyle}>{t(f.labelKey)}</label>
+            <input
+              type="number"
+              min={f.min}
+              max={f.max}
+              step={f.step}
+              value={draft[f.key] ?? ''}
+              placeholder={t('not_declared')}
+              onChange={(e) => set(f.key, e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+        ))}
+
+        <div style={rowStyle}>
+          <label style={labelStyle}>{t('irrigated')}</label>
+          <Select value={draft.irrigated} onValueChange={(v: string) => set('irrigated', v)} options={triState} size="sm" />
+        </div>
+
+        <div style={rowStyle}>
+          <label style={labelStyle}>{t('residues_removed')}</label>
+          <Select value={draft.residues_removed} onValueChange={(v: string) => set('residues_removed', v)} options={triState} size="sm" />
+        </div>
+
         <div style={rowStyle}>
           <label style={labelStyle}>{t('tillage')}</label>
-          <select
-            value={tillageType}
-            onChange={(e) => setTillageType(e.target.value)}
-            style={inputStyle}
-          >
-            {TILLAGE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {t(opt.labelKey)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Cover crop months */}
-        <div style={rowStyle}>
-          <label style={labelStyle}>{t('cover_crop_months')}</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input
-              type="range"
-              min={0}
-              max={12}
-              step={1}
-              value={coverCropMonths}
-              onChange={(e) => setCoverCropMonths(Number(e.target.value))}
-              style={{ flex: 1 }}
-            />
-            <span
-              style={{
-                minWidth: '24px',
-                textAlign: 'center',
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#374151',
-              }}
-            >
-              {coverCropMonths}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '12px',
-        }}
-      >
-        {/* Organic amendments */}
-        <div style={rowStyle}>
-          <label style={labelStyle}>{t('organic_amendments')}</label>
-          <input
-            type="number"
-            min={0}
-            step={0.1}
-            value={organicAmendments}
-            onChange={(e) => setOrganicAmendments(Number(e.target.value))}
-            style={inputStyle}
-          />
-        </div>
-
-        {/* N Fertilizer synthetic */}
-        <div style={rowStyle}>
-          <label style={labelStyle}>{t('n_fertilizer')} (synthetic)</label>
-          <input
-            type="number"
-            min={0}
-            step={1}
-            value={nFertilizerSynthetic}
-            onChange={(e) => setNFertilizerSynthetic(Number(e.target.value))}
-            style={inputStyle}
-          />
-        </div>
-
-        {/* N Fertilizer organic */}
-        <div style={rowStyle}>
-          <label style={labelStyle}>{t('n_fertilizer')} (organic)</label>
-          <input
-            type="number"
-            min={0}
-            step={1}
-            value={nFertilizerOrganic}
-            onChange={(e) => setNFertilizerOrganic(Number(e.target.value))}
-            style={inputStyle}
-          />
-        </div>
-      </div>
-
-      {/* Weather source */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '12px',
-        }}
-      >
-        <div style={rowStyle}>
-          <label style={labelStyle}>{t('weather_source')}</label>
           <Select
-            value={weatherSource}
-            onValueChange={setWeatherSource}
-            options={WEATHER_SOURCE_OPTIONS.map((opt) => ({
-              value: opt.value,
-              label: t(opt.labelKey),
-            }))}
+            value={draft.tillage_type}
+            onValueChange={(v: string) => set('tillage_type', v)}
+            options={[{ value: '', label: t('not_declared') }, ...TILLAGE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))]}
             size="sm"
           />
         </div>
-        {weatherSource === 'sensor' && (
+
+        <div style={rowStyle}>
+          <label style={labelStyle}>{t('weather_source')}</label>
+          <Select
+            value={draft.weather_source}
+            onValueChange={(v: string) => set('weather_source', v)}
+            options={[{ value: '', label: t('not_declared') }, ...WEATHER_SOURCE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))]}
+            size="sm"
+          />
+        </div>
+
+        {draft.weather_source === 'sensor' && (
           <div style={rowStyle}>
             <label style={labelStyle}>{t('select_sensor')}</label>
             <Select
-              value={weatherSensorId}
-              onValueChange={setWeatherSensorId}
+              value={draft.weather_sensor_id}
+              onValueChange={(v: string) => set('weather_sensor_id', v)}
               options={[
                 { value: '', label: t('select_sensor') },
-                ...sensors.map((s) => ({
-                  value: s.id,
-                  label: `${s.name}${s.sensor_type ? ` (${s.sensor_type})` : ''}`,
-                })),
+                ...sensors.map((s) => ({ value: s.id, label: `${s.name}${s.sensor_type ? ` (${s.sensor_type})` : ''}` })),
               ]}
               size="sm"
             />
@@ -288,112 +192,29 @@ const CarbonManagementForm: React.FC<CarbonManagementFormProps> = ({
         )}
       </div>
 
-      {/* Toggles */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '16px',
-        }}
-      >
-        <ToggleRow label={t('residues_removed')} checked={residuesRemoved} onChange={setResiduesRemoved} />
-        <ToggleRow label={t('irrigated')} checked={irrigated} onChange={setIrrigated} />
-      </div>
-
-      {/* Save button + status */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button
           type="submit"
           disabled={saveState === 'saving'}
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '10px 20px',
+            padding: '8px 20px',
             border: 'none',
-            borderRadius: '8px',
-            backgroundColor: saveState === 'saved' ? '#059669' : '#2563EB',
+            borderRadius: '6px',
+            backgroundColor: saveState === 'saving' ? colors.gray300 : colors.accentBase,
             color: '#FFFFFF',
-            fontSize: '14px',
+            fontSize: '13px',
             fontWeight: 500,
             cursor: saveState === 'saving' ? 'not-allowed' : 'pointer',
-            opacity: saveState === 'saving' ? 0.7 : 1,
-            transition: 'all 0.15s ease',
           }}
         >
-          {saveState === 'saving' && (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
-              <circle cx="8" cy="8" r="6" stroke="white" strokeWidth="2" strokeDasharray="8 4" />
-            </svg>
-          )}
           {saveState === 'saved' ? t('saved') : saveState === 'saving' ? t('saving') : t('save')}
         </button>
-
-        {saveState === 'saved' && (
-          <span style={{ fontSize: '13px', color: '#059669', fontWeight: 500 }}>
-            {t('saved')}
-          </span>
-        )}
-
         {saveState === 'error' && errorMsg && (
-          <span style={{ fontSize: '13px', color: '#DC2626' }}>{errorMsg}</span>
+          <span style={{ fontSize: '12px', color: colors.danger }}>{errorMsg}</span>
         )}
       </div>
     </form>
   );
 };
-
-function ToggleRow({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        cursor: 'pointer',
-        fontSize: '13px',
-        color: '#374151',
-        userSelect: 'none',
-      }}
-    >
-      <div
-        onClick={() => onChange(!checked)}
-        style={{
-          width: '36px',
-          height: '20px',
-          borderRadius: '10px',
-          backgroundColor: checked ? '#2563EB' : '#D1D5DB',
-          position: 'relative',
-          transition: 'background-color 0.2s ease',
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}
-      >
-        <div
-          style={{
-            width: '16px',
-            height: '16px',
-            borderRadius: '50%',
-            backgroundColor: '#FFFFFF',
-            position: 'absolute',
-            top: '2px',
-            left: checked ? '18px' : '2px',
-            transition: 'left 0.2s ease',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-          }}
-        />
-      </div>
-      {label}
-    </label>
-  );
-}
 
 export default CarbonManagementForm;
