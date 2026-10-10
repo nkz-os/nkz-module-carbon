@@ -312,10 +312,20 @@ def test_passed_planned_end_keeps_the_cycle_open():
     planned = replace(_cycle(date(2026, 3, 1), date(2026, 7, 31)), end_provenance="planned")
     b = compute_campaign_balance(_inp(cycles=(planned,), harvests=()))
     assert "cycle_end" in _items(b) and "harvest_export" not in _items(b)
-    assert next(m for m in b.missing if m.item == "cycle_end").effect == "cycle_open"
+    # Its residue cannot enter without a real end: no soil balance rather than one without it.
+    assert next(m for m in b.missing if m.item == "cycle_end").effect == "tier2_unavailable"
+    assert b.tier <= 1 and b.delta_soc_tC_ha is None
     # still covering the soil after the planned date, no closure
     assert b.cover_days == (date(2026, 9, 30) - date(2026, 3, 1)).days + 1
     assert b.cycles[0].exported_c_tC_ha is None
+
+
+def test_open_cycle_from_last_year_is_still_reported_the_next_year():
+    planned = replace(_cycle(date(2025, 3, 1), date(2025, 7, 31)), end_provenance="planned")
+    w = _weather(date(2025, 3, 1), date(2026, 10, 9))
+    b = compute_campaign_balance(_inp(cycles=(planned,), harvests=(), weather=w))
+    assert "cycle_end" in _items(b) and "cycles" not in _items(b)
+    assert b.cover_days == (date(2026, 9, 30) - date(2026, 1, 1)).days + 1 and b.tier <= 1
 
 
 def test_confirmed_end_still_closes_the_cycle():

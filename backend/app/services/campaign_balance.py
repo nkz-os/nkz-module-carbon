@@ -129,12 +129,14 @@ def compute_campaign_balance(inp: CampaignInputs) -> CampaignBalance:
         if c.end is not None and c.end < c.start:
             missing.append(Missing("cycle", f"{c.crop_id}: end before start", "ignored"))
             continue
-        if c.start > through or (c.end is not None and c.end < p_start):
-            continue
+        # An end that is only an intention and has passed: the cycle is still open (also in the
+        # following years), and without its real end its residue cannot enter: no soil balance.
         if c.end is not None and c.end <= through and c.end_provenance in _UNCONFIRMED_END:
             missing.append(Missing("cycle_end", f"{c.crop_id}: planned end {c.end.isoformat()} passed without "
-                                   "a recorded end", "cycle_open"))
+                                   "a recorded end", "tier2_unavailable"))
             c = replace(c, end=None)
+        if c.start > through or (c.end is not None and c.end < p_start):
+            continue
         if c.start_provenance == "planned":
             missing.append(Missing("cycle_start", f"{c.crop_id}: start is a planned date, not confirmed",
                                    "uses_planned_date"))

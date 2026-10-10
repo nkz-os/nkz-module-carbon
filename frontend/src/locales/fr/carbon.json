@@ -112,8 +112,7 @@
     "bare_soil_assumed": "Compté comme sol nu",
     "no_projection": "Pas de projection",
     "cover_uncertain": "Couverture du sol incertaine : vérifiez les cycles de culture",
-    "assumed": "Une hypothèse déclarée est utilisée",
-    "cycle_open": "Le cycle reste ouvert jusqu'à l'enregistrement de sa fin"
+    "assumed": "Une hypothèse déclarée est utilisée"
   },
   "gap": {
     "baseline_soil_sampling": "Échantillonnage du sol au départ",
@@ -122,7 +121,7 @@
     "baseline_not_defined": "Référence non définie",
     "tier3_not_reached": "Bilan N₂O (niveau 3) non atteint",
     "open_campaign": "La dernière campagne est encore ouverte",
-    "baseline_incomplete": "Référence sans variation de COS pour une campagne"
+    "baseline_incomplete": "Variation de COS manquante pour une campagne (projet ou référence)"
   },
   "export_vm0042": "Exporter VM0042",
   "export_gold_standard": "Exporter Gold Standard",
@@ -206,7 +205,7 @@
     },
     "irrigation_unknown": "aucune irrigation enregistrée ni déclarée (traité en sec)"
   },
-  "baseline_incomplete": "Référence incomplète : variation de COS manquante en {{years}}",
+  "baseline_incomplete": "Réduction non calculable : variation de COS manquante (projet ou référence) en {{years}}",
   "assumption": {
     "repeat_reference": "Climat et conduite de {{year}} répétés chaque année",
     "no_baseline": "Aucune référence définie : seule la conduite actuelle est projetée",

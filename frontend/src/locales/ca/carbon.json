@@ -112,8 +112,7 @@
     "bare_soil_assumed": "Es compta com a sòl nu",
     "no_projection": "Sense projecció",
     "cover_uncertain": "Coberta del sòl incerta: reviseu els cicles de cultiu",
-    "assumed": "S'utilitza un supòsit declarat",
-    "cycle_open": "El cicle es manté obert fins que se'n registri la fi"
+    "assumed": "S'utilitza un supòsit declarat"
   },
   "gap": {
     "baseline_soil_sampling": "Mostreig de sòl a l'inici",
@@ -122,7 +121,7 @@
     "baseline_not_defined": "Línia base sense definir",
     "tier3_not_reached": "Balanç de N₂O (nivell 3) no assolit",
     "open_campaign": "L'última campanya encara és oberta",
-    "baseline_incomplete": "Línia base sense canvi de COS en alguna campanya"
+    "baseline_incomplete": "Falta el canvi de COS en alguna campanya (projecte o línia base)"
   },
   "export_vm0042": "Exportar VM0042",
   "export_gold_standard": "Exportar Gold Standard",
@@ -206,7 +205,7 @@
     },
     "irrigation_unknown": "sense regs registrats ni declarats (es tracta com a secà)"
   },
-  "baseline_incomplete": "Línia base incompleta: falta el canvi de COS a {{years}}",
+  "baseline_incomplete": "Sense reducció calculable: falta el canvi de COS (del projecte o de la línia base) a {{years}}",
   "assumption": {
     "repeat_reference": "Es repeteixen cada any el clima i el maneig de {{year}}",
     "no_baseline": "Sense línia base definida: només es projecta el maneig actual",

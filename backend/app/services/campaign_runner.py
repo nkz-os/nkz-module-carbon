@@ -21,7 +21,7 @@ from app.platform.eo_ndvi_client import fetch_vi_series
 from app.platform.errors import SourceUnavailable
 from app.platform.operations_client import fetch_operations, fetch_parcel_area_ha
 from app.platform.soil_client import fetch_soil_init
-from app.services.campaign_balance import ENGINE_VERSION, compute_campaign_balance, computed_through
+from app.services.campaign_balance import _UNCONFIRMED_END, ENGINE_VERSION, compute_campaign_balance, computed_through
 from app.services.campaign_types import (
     NO_DECLARED_MANAGEMENT, CampaignBalance, CampaignInputs, CycleSpan, DeclaredManagement, Missing,
     OperationsRead,
@@ -134,7 +134,9 @@ def _spans(raw: list[dict], year: int) -> list[dict]:
         if start is None:
             continue
         end = _parse_date((c.get("end") or {}).get("date"))
-        if start > date(year, 12, 31) or (end is not None and end < date(year, 1, 1)):
+        unconfirmed = (c.get("end") or {}).get("provenance") in _UNCONFIRMED_END
+        # A passed planned end does not close the cycle: the balance keeps it open and says so.
+        if start > date(year, 12, 31) or (end is not None and end < date(year, 1, 1) and not unconfirmed):
             continue
         out.append({**c, "_start": start, "_end": end})
     return out

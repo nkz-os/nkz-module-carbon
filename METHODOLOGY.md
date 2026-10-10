@@ -87,7 +87,8 @@ exported = harvested_weight · (1 − moisture) · 0.45 / area      [tC/ha]
 Without weight or moisture, the declared harvest-export fraction is used; without either, the export is
 missing and Tier 2 is not computed. Baling removes the declared share of the remaining residue. A cover crop
 without a harvest returns all its biomass. A planned end date that has passed without a recorded end does not
-close the cycle: it stays open and is reported, so no harvest or bare days are invented. Perennial crops are reported without Tier 2: pruning and litter
+close the cycle: it stays open (also in the following campaigns) and is reported, so no harvest or bare days are
+invented; Tier 2 is not computed, since the residue of that cycle cannot enter without its real end. Perennial crops are reported without Tier 2: pruning and litter
 inputs are not known.
 
 Organic amendments: the carbon declared by the farmer (tC/ha/yr), placed in the months of the organic

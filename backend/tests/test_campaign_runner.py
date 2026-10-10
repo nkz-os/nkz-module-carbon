@@ -422,3 +422,15 @@ async def test_projection_assumptions_carry_codes_for_translation(env):
     p = await cr.projection("t1", "abc", years=2)
     assert p["assumption_codes"][1] == {"code": "baseline_same_climate", "year": 2025}
     assert len(p["assumption_codes"]) == len(p["assumptions"])
+
+
+@pytest.mark.asyncio
+async def test_unconfirmed_end_last_year_keeps_the_cycle(env, monkeypatch):
+    async def cycles(urn, tenant, at, client=None):
+        c = _cycle_dict("2025-03-01", "2025-07-31")
+        c["end"]["provenance"] = "planned"
+        return [c]
+    monkeypatch.setattr(cr, "fetch_cycles", cycles)
+    b = await cr.run_campaign("t1", "abc", 2026, today=TODAY)
+    assert [c.crop_id for c in b.cycles] == ["urn:ngsi-ld:AgriCrop:c1"]
+    assert "cycle_end" in {m.item for m in b.missing}

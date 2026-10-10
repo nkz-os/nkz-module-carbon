@@ -112,8 +112,7 @@
     "bare_soil_assumed": "Lur biluzi gisa kontatzen da",
     "no_projection": "Proiekziorik ez",
     "cover_uncertain": "Lurzoruaren estaldura ziurgabea: berrikusi labore-zikloak",
-    "assumed": "Adierazitako hipotesi bat erabiltzen da",
-    "cycle_open": "Zikloa irekita dago amaiera erregistratu arte"
+    "assumed": "Adierazitako hipotesi bat erabiltzen da"
   },
   "gap": {
     "baseline_soil_sampling": "Hasierako lurzoru-laginketa",
@@ -122,7 +121,7 @@
     "baseline_not_defined": "Oinarri-lerroa definitu gabe",
     "tier3_not_reached": "N₂O balantzea (3. maila) ez da lortu",
     "open_campaign": "Azken kanpaina irekita dago oraindik",
-    "baseline_incomplete": "Oinarri-lerroak ez du COS aldaketarik kanpainaren batean"
+    "baseline_incomplete": "COS aldaketa falta da kanpainaren batean (proiektua edo oinarri-lerroa)"
   },
   "export_vm0042": "VM0042 Esportatu",
   "export_gold_standard": "Gold Standard Esportatu",
@@ -206,7 +205,7 @@
     },
     "irrigation_unknown": "ureztatzerik ez erregistratuta ez adierazita (lehorreko gisa tratatzen da)"
   },
-  "baseline_incomplete": "Oinarri-lerro osatugabea: COS aldaketa falta da {{years}} urtean",
+  "baseline_incomplete": "Ezin da murrizketa kalkulatu: COS aldaketa falta da (proiektuarena edo oinarri-lerroarena) {{years}} urtean",
   "assumption": {
     "repeat_reference": "{{year}} urteko klima eta maneiua urtero errepikatzen dira",
     "no_baseline": "Oinarri-lerrorik ez: egungo maneiua bakarrik proiektatzen da",

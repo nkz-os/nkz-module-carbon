@@ -112,8 +112,7 @@
     "bare_soil_assumed": "Counted as bare soil",
     "no_projection": "No projection",
     "cover_uncertain": "Soil cover uncertain: check the crop cycles",
-    "assumed": "A declared assumption is used",
-    "cycle_open": "The cycle stays open until its end is recorded"
+    "assumed": "A declared assumption is used"
   },
   "gap": {
     "baseline_soil_sampling": "Soil sampling at the start",
@@ -122,7 +121,7 @@
     "baseline_not_defined": "Baseline not defined",
     "tier3_not_reached": "N₂O balance (tier 3) not reached",
     "open_campaign": "The last campaign is still open",
-    "baseline_incomplete": "Baseline without SOC change in some campaign"
+    "baseline_incomplete": "SOC change missing in some campaign (project or baseline)"
   },
   "export_vm0042": "Export VM0042",
   "export_gold_standard": "Export Gold Standard",
@@ -206,7 +205,7 @@
     },
     "irrigation_unknown": "no irrigation recorded or declared (treated as rainfed)"
   },
-  "baseline_incomplete": "Incomplete baseline: SOC change missing in {{years}}",
+  "baseline_incomplete": "No reduction computable: SOC change missing (project or baseline) in {{years}}",
   "assumption": {
     "repeat_reference": "Climate and management of {{year}} repeated every year",
     "no_baseline": "No baseline defined: only the current management is projected",

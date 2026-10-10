@@ -112,8 +112,7 @@
     "bare_soil_assumed": "Conta como solo nu",
     "no_projection": "Sem projeção",
     "cover_uncertain": "Cobertura do solo incerta: reveja os ciclos de cultura",
-    "assumed": "É usado um pressuposto declarado",
-    "cycle_open": "O ciclo mantém-se aberto até o seu fim ser registado"
+    "assumed": "É usado um pressuposto declarado"
   },
   "gap": {
     "baseline_soil_sampling": "Amostragem do solo no início",
@@ -122,7 +121,7 @@
     "baseline_not_defined": "Linha de base não definida",
     "tier3_not_reached": "Balanço de N₂O (nível 3) não alcançado",
     "open_campaign": "A última campanha ainda está aberta",
-    "baseline_incomplete": "Linha de base sem variação de COS em alguma campanha"
+    "baseline_incomplete": "Falta a variação de COS em alguma campanha (projeto ou linha de base)"
   },
   "export_vm0042": "Exportar VM0042",
   "export_gold_standard": "Exportar Gold Standard",
@@ -206,7 +205,7 @@
     },
     "irrigation_unknown": "sem regas registadas nem declaradas (tratado como sequeiro)"
   },
-  "baseline_incomplete": "Linha de base incompleta: falta a variação de COS em {{years}}",
+  "baseline_incomplete": "Redução não calculável: falta a variação de COS (do projeto ou da linha de base) em {{years}}",
   "assumption": {
     "repeat_reference": "Clima e maneio de {{year}} repetidos todos os anos",
     "no_baseline": "Sem linha de base definida: só se projeta o maneio atual",
