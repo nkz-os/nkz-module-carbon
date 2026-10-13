@@ -56,3 +56,35 @@ async def test_network_error_is_source_unavailable():
         with pytest.raises(SourceUnavailable):
             await fetch_daily_weather("urn:ngsi-ld:AgriParcel:p1", "t1",
                                       date(2026, 3, 1), date(2026, 3, 2), c)
+
+
+async def _headers_sent(monkeypatch, secret):
+    if secret is None:
+        monkeypatch.delenv("HMAC_SECRET", raising=False)
+    else:
+        monkeypatch.setenv("HMAC_SECRET", secret)
+    seen = {}
+
+    def handler(req):
+        seen["headers"] = req.headers
+        return httpx.Response(200, json={"days": []})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+        await fetch_daily_weather("urn:ngsi-ld:AgriParcel:p1", "t1",
+                                  date(2026, 3, 1), date(2026, 3, 2), c)
+    return seen["headers"]
+
+
+@pytest.mark.asyncio
+async def test_request_is_signed(monkeypatch):
+    """weather-api trusts X-Tenant-ID only with a valid platform signature."""
+    from nkz_platform_sdk.crypto import verify_hmac_signature
+
+    headers = await _headers_sent(monkeypatch, "k")
+    assert verify_hmac_signature("k", headers["x-auth-signature"], "", "t1")
+
+
+@pytest.mark.asyncio
+async def test_unsigned_without_secret(monkeypatch):
+    headers = await _headers_sent(monkeypatch, None)
+    assert "x-auth-signature" not in headers

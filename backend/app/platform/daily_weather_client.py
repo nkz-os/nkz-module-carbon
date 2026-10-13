@@ -11,6 +11,7 @@ from datetime import date
 from typing import Optional
 
 import httpx
+from nkz_platform_sdk.crypto import generate_hmac_signature
 
 from app.platform.errors import SourceUnavailable
 from app.platform.http import http_get
@@ -32,6 +33,21 @@ def _num(v) -> Optional[float]:
         return None
 
 
+def _weather_api_headers(tenant_id: str) -> dict[str, str]:
+    """Service identity for weather-api: the tenant plus the platform signature.
+
+    weather-api trusts X-Tenant-ID only when X-Auth-Signature verifies; a
+    service call has no user token, so the signed token is empty (SDK
+    convention). Without HMAC_SECRET the call goes unsigned and a backend
+    that requires the signature answers 401 (SourceUnavailable below).
+    """
+    headers = {"X-Tenant-ID": tenant_id, "X-User-ID": "carbon-worker"}
+    secret = os.getenv("HMAC_SECRET", "")
+    if secret:
+        headers["X-Auth-Signature"] = generate_hmac_signature(secret, "", tenant_id)
+    return headers
+
+
 async def fetch_daily_weather(
     parcel_urn: str,
     tenant_id: str,
@@ -45,7 +61,7 @@ async def fetch_daily_weather(
             client,
             f"{WEATHER_API_URL}/api/weather/parcel/{short}/daily",
             params={"start": start.isoformat(), "end": end.isoformat(), "fill": "open_meteo"},
-            headers={"X-Tenant-ID": tenant_id, "X-User-ID": "carbon-worker"},
+            headers=_weather_api_headers(tenant_id),
             timeout=_TIMEOUT_S,
         )
     except httpx.HTTPError as exc:
