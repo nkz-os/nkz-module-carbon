@@ -1,38 +1,62 @@
+"""Crop cycles come from the platform rule over the broker (SDK), not a core endpoint."""
 from datetime import date
 
-import httpx
 import pytest
 
 from app.platform import crop_cycles_client as cc
 from app.platform.errors import SourceUnavailable
 
+P = "urn:ngsi-ld:AgriParcel:p1"
+CROP = {"id": "urn:ngsi-ld:AgriCrop:t:a", "type": "AgriCrop", "hasAgriParcel": P, "status": "active",
+        "plantingDate": "2026-03-01", "plantingDateSource": "manual", "harvestDate": "2026-07-15"}
+
+
+class FakeOrion:
+    def __init__(self, behaviour):
+        self.behaviour, self.closed = behaviour, False
+
+    async def close(self):
+        self.closed = True
+
+
+def _patch_load(monkeypatch, behaviour):
+    fake = FakeOrion(behaviour)
+    monkeypatch.setattr(cc, "OrionClient", lambda tenant_id, **kw: fake)
+
+    async def load(client, urn):
+        if behaviour == "missing":
+            raise cc.ParcelNotFound(urn)
+        if behaviour == "down":
+            raise cc.CropDataUnavailable("broker down")
+        return {"id": urn}, [dict(CROP)], []
+
+    monkeypatch.setattr(cc, "load_crop_data", load)
+    return fake
+
 
 @pytest.mark.asyncio
-async def test_sends_internal_secret_and_returns_cycles(monkeypatch):
-    monkeypatch.setattr(cc, "INTERNAL_SERVICE_SECRET", "s3")
-
-    def handler(req):
-        assert req.headers["x-internal-service-secret"] == "s3"
-        assert req.url.params["tenant_id"] == "t1" and req.url.params["at"] == "2026-12-31"
-        assert req.url.path.endswith("/api/internal/parcels/urn:ngsi-ld:AgriParcel:p1/crop-cycles")
-        return httpx.Response(200, json={"cycles": [{"crop_id": "c1"}]})
-
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
-        out = await cc.fetch_cycles("urn:ngsi-ld:AgriParcel:p1", "t1", date(2026, 12, 31), c)
-    assert out == [{"crop_id": "c1"}]
+async def test_returns_the_cycles_of_the_timeline_at_the_given_day(monkeypatch):
+    fake = _patch_load(monkeypatch, "ok")
+    out = await cc.fetch_cycles(P, "t1", date(2026, 12, 31))
+    assert [c["crop_id"] for c in out] == [CROP["id"]] and out[0]["campaign_label"] == 2026
+    assert fake.closed
 
 
 @pytest.mark.asyncio
 async def test_unknown_parcel_has_no_cycles(monkeypatch):
-    monkeypatch.setattr(cc, "INTERNAL_SERVICE_SECRET", "s3")
-    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(404))) as c:
-        assert await cc.fetch_cycles("urn:ngsi-ld:AgriParcel:p1", "t1", date(2026, 12, 31), c) == []
+    _patch_load(monkeypatch, "missing")
+    assert await cc.fetch_cycles(P, "t1", date(2026, 12, 31)) == []
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [401, 503])
-async def test_auth_or_server_error_is_source_unavailable(monkeypatch, status):
-    monkeypatch.setattr(cc, "INTERNAL_SERVICE_SECRET", "s3")
-    async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(status))) as c:
-        with pytest.raises(SourceUnavailable):
-            await cc.fetch_cycles("urn:ngsi-ld:AgriParcel:p1", "t1", date(2026, 12, 31), c)
+async def test_broker_failure_is_source_unavailable(monkeypatch):
+    fake = _patch_load(monkeypatch, "down")
+    with pytest.raises(SourceUnavailable):
+        await cc.fetch_cycles(P, "t1", date(2026, 12, 31))
+    assert fake.closed
+
+
+def test_no_core_endpoint_left():
+    import inspect
+
+    assert "/crop-cycles" not in inspect.getsource(cc)

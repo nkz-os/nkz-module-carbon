@@ -84,8 +84,7 @@ See [METHODOLOGY.md](METHODOLOGY.md): periods, inputs, formulas, RothC validatio
 | Service | Purpose |
 |---------|---------|
 | weather-api | Closed-day parcel weather (`/api/weather/parcel/{id}/daily`) |
-| entity-manager | Crop cycles (`/api/internal/parcels/{id}/crop-cycles`) |
-| Orion-LD | `EOProduct` (NDVI), `AgriSoilExtended`, `AgriParcelOperation`, results |
+| Orion-LD | `EOProduct` (NDVI), `AgriSoilExtended`, `AgriCrop` + `AgriParcelOperation` (crop cycles, resolved with the platform SDK), results |
 | bioorchestrator | Crop parameters (LUE, fAPAR, root fraction), optional |
 | PostgreSQL | Plan check and audit log |
 
@@ -95,7 +94,6 @@ See [METHODOLOGY.md](METHODOLOGY.md): periods, inputs, formulas, RothC validatio
 |----------|---------|-------------|
 | `FIWARE_CONTEXT_BROKER_URL` | `http://orion-ld-service:1026` | Orion-LD internal URL |
 | `WEATHER_API_URL` | `http://weather-api-service:8000` | Parcel daily weather |
-| `ENTITY_MANAGER_URL` | `http://entity-manager-service:5000` | Crop cycles |
 | `BIOORCHESTRATOR_URL` | `http://bioorchestrator-api-service:8420` | Crop parameters |
 | `INTERNAL_SERVICE_SECRET` | — | Internal routes and calls |
 | `DATABASE_URL` | — | PostgreSQL connection string |
