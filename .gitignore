@@ -1,0 +1,36 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+.venv/
+venv/
+node_modules/
+dist/
+*.log
+.DS_Store
+.coverage
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+
+# Agent planning/spec docs (not for public repo)
+docs/superpowers/
+docs/internal/
+internal-docs/
+docs/plans/
+docs/specs/
+docs/audits/
+*_PLAN.md
+*_SPEC.md
+*HANDOVER*.md
+HANDOFF.md
+CURRENT_STATE.md
+.ai/
+
+# Security: sensitive files
+*.pem
+*.key
+apikey_*.txt
+*.apikey
+*-secret*
+*_api_key.txt

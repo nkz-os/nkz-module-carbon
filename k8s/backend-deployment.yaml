@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: carbon-api
+  namespace: nekazari
+  labels:
+    app: carbon-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: carbon-api
+  template:
+    metadata:
+      labels:
+        app: carbon-api
+    spec:
+      containers:
+        - name: carbon-api
+          image: ghcr.io/nkz-os/nkz-module-carbon/carbon-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: nekazari-config
+          env:
+            - name: FIWARE_CONTEXT_BROKER_URL
+              value: "http://orion-ld-service:1026"
+            - name: WEATHER_API_URL
+              value: "http://weather-api-service:8000"
+            - name: VEGETATION_PRIME_URL
+              value: "http://vegetation-prime-api-service:8000"
+            - name: BIOORCHESTRATOR_URL
+              value: "http://bioorchestrator-api-service:8420"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgresql-secret
+                  key: postgres-url
+            - name: INTERNAL_SERVICE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: internal-service-secret
+                  key: INTERNAL_SERVICE_SECRET
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
