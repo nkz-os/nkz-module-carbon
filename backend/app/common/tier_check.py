@@ -36,7 +36,7 @@ async def check_tier(request: Request):
     try:
         pool = await get_pool()
         row = await pool.fetchrow(
-            "SELECT plan_level FROM tenants WHERE tenant_id = $1", tenant_id
+            "SELECT plan_level FROM module_tenant_plan WHERE tenant_id = $1", tenant_id
         )
         if row is not None and row["plan_level"] is not None:
             plan_level = int(row["plan_level"])

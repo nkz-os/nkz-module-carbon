@@ -78,7 +78,7 @@ async def list_tenants_with_module(module_id: str) -> list[str]:
     """Tenants that have the module installed and enabled."""
     pool = await get_pool()
     rows = await pool.fetch(
-        "SELECT tenant_id FROM tenant_installed_modules WHERE module_id = $1 AND is_enabled ORDER BY tenant_id",
+        "SELECT tenant_id FROM module_installations WHERE module_id = $1 AND is_enabled ORDER BY tenant_id",
         module_id,
     )
     return [r["tenant_id"] for r in rows]
