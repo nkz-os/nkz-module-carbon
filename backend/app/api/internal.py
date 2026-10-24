@@ -136,7 +136,7 @@ async def setup_parcel(
     Called by entity-manager when the module is activated on a parcel.
     Authenticated by X-Internal-Service-Secret (not JWT).
 
-    Request body: { "parcel_id": "<AgriParcel id>", "tenant_id": "<tenant>" }
+    Request body: { "parcel_id": "<AgriParcel id>", "tenant_id": "<tenant>", "action"?: "activate" }
     """
     internal_secret = os.getenv("INTERNAL_SERVICE_SECRET", "")
     if not internal_secret or not hmac.compare_digest(x_internal_secret, internal_secret):
@@ -146,6 +146,13 @@ async def setup_parcel(
     tenant_id = body.get("tenant_id", "")
     if not parcel_id or not tenant_id:
         raise HTTPException(status_code=400, detail="parcel_id and tenant_id required")
+
+    action = body.get("action") or "activate"
+    if action not in ("activate", "deactivate", "teardown"):
+        raise HTTPException(status_code=400, detail="Invalid action")
+    # Only activation computes; deactivating or deleting the parcel keeps its campaigns.
+    if action != "activate":
+        return {"status": action, "parcel_id": parcel_id, "tenant_id": tenant_id}
 
     async def _run():
         try:
