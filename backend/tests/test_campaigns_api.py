@@ -117,6 +117,26 @@ def test_setup_parcel_no_longer_writes_default_stock(client, monkeypatch):
     run.assert_awaited_once()
 
 
+@pytest.mark.parametrize("action", ["deactivate", "teardown"])
+def test_setup_parcel_deactivate_and_teardown_compute_nothing(client, monkeypatch, action):
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "s3")
+    run = AsyncMock()
+    with patch.object(internal, "run_campaign", run):
+        r = client.post("/api/carbon/internal/setup-parcel",
+                        json={"parcel_id": "urn:ngsi-ld:AgriParcel:abc", "tenant_id": "t1", "action": action},
+                        headers={"X-Internal-Service-Secret": "s3"})
+    assert r.status_code == 200 and r.json()["status"] == action
+    run.assert_not_awaited()
+
+
+def test_setup_parcel_unknown_action_returns_400(client, monkeypatch):
+    monkeypatch.setenv("INTERNAL_SERVICE_SECRET", "s3")
+    r = client.post("/api/carbon/internal/setup-parcel",
+                    json={"parcel_id": "urn:ngsi-ld:AgriParcel:abc", "tenant_id": "t1", "action": "explode"},
+                    headers={"X-Internal-Service-Secret": "s3"})
+    assert r.status_code == 400
+
+
 def test_projection_and_mrv_routes_use_stored_campaigns(monkeypatch):
     from app.api import assessments, mrv
     app = FastAPI()
