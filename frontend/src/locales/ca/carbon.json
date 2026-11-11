@@ -230,6 +230,6 @@
     "baseline_same_climate": "Línia base: maneig de {{year}} amb el mateix clima"
   },
   "climate_band_baseline": "Rang de la línia base entre anys climàtics històrics (2,5–97,5 %)",
-  "climate_band_note": "Només variabilitat climàtica; sense tendència de canvi climàtic; no inclou la incertesa del model ni de les dades d'entrada",
+  "climate_band_note": "Variabilitat climàtica dels anys passats, amb clima estacionari; no és una predicció; sense tendència de canvi climàtic; no inclou la incertesa del model ni de les dades d'entrada",
   "delta_range": "(2,5–97,5 %: {{lo}} – {{hi}})"
 }

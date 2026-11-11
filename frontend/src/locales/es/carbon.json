@@ -230,6 +230,6 @@
     "baseline_same_climate": "Línea base: manejo de {{year}} con el mismo clima"
   },
   "climate_band_baseline": "Rango de la línea base entre años climáticos históricos (2,5–97,5 %)",
-  "climate_band_note": "Solo variabilidad climática; sin tendencia de cambio climático; no incluye incertidumbre del modelo ni de los datos de entrada",
+  "climate_band_note": "Variabilidad climática de los años pasados, con clima estacionario; no es un pronóstico; sin tendencia de cambio climático; no incluye incertidumbre del modelo ni de los datos de entrada",
   "delta_range": "(2,5–97,5 %: {{lo}} – {{hi}})"
 }

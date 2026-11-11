@@ -230,6 +230,6 @@
     "baseline_same_climate": "Oinarri-lerroa: {{year}} urteko maneiua klima berarekin"
   },
   "climate_band_baseline": "Oinarri-lerroaren tartea urte klimatiko historikoen artean (% 2,5–97,5)",
-  "climate_band_note": "Klima-aldakortasuna soilik; klima-aldaketaren joerarik gabe; ez ditu eredu eta sarrera-datuen ziurgabetasunak barne hartzen",
+  "climate_band_note": "Iraganeko urteen klima-aldakortasuna, klima egonkorrarekin; ez da iragarpen bat; klima-aldaketaren joerarik gabe; ez ditu eredu eta sarrera-datuen ziurgabetasunak barne hartzen",
   "delta_range": "(% 2,5–97,5: {{lo}} – {{hi}})"
 }

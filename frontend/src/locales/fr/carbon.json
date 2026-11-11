@@ -230,6 +230,6 @@
     "baseline_same_climate": "Référence : conduite de {{year}} sous le même climat"
   },
   "climate_band_baseline": "Plage de la référence entre années climatiques historiques (2,5–97,5 %)",
-  "climate_band_note": "Variabilité climatique uniquement ; sans tendance de changement climatique ; hors incertitude du modèle et des données d'entrée",
+  "climate_band_note": "Variabilité climatique des années passées, climat supposé stationnaire ; ce n'est pas une prévision ; sans tendance de changement climatique ; hors incertitude du modèle et des données d'entrée",
   "delta_range": "(2,5–97,5 % : {{lo}} – {{hi}})"
 }

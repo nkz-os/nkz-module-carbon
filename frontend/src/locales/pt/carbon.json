@@ -230,6 +230,6 @@
     "baseline_same_climate": "Linha de base: maneio de {{year}} com o mesmo clima"
   },
   "climate_band_baseline": "Intervalo da linha de base entre anos climáticos históricos (2,5–97,5 %)",
-  "climate_band_note": "Apenas variabilidade climática; sem tendência de alteração climática; não inclui a incerteza do modelo nem dos dados de entrada",
+  "climate_band_note": "Variabilidade climática dos anos passados, com clima estacionário; não é uma previsão; sem tendência de alteração climática; não inclui a incerteza do modelo nem dos dados de entrada",
   "delta_range": "(2,5–97,5 %: {{lo}} – {{hi}})"
 }
