@@ -1,6 +1,6 @@
 # Carbon Balance Methodology — Nekazari Carbon Module
 
-> **Version:** 0.2.0 (engine 3.0.0) | **License:** AGPL-3.0 | **Report type:** monitoring estimate, not certified
+> **Version:** 0.3.0 (engine 3.0.0) | **License:** AGPL-3.0 | **Report type:** monitoring estimate, not certified
 
 ## 1. Overview
 
@@ -151,8 +151,16 @@ Latin-hypercube samples of the plant-input multiplier. Soil-property uncertainty
 
 ## 7. Projection and monitoring report
 
-- **Projection:** the last complete campaign with a soil balance is repeated year after year from its 31
-  December pools. With a baseline scenario, its reference campaign is replayed under the same climate.
+- **Projection:** RothC runs from the 31 December pools of the last complete campaign with a soil balance, with
+  that campaign's management (cover, plant and manure inputs) repeated every year. The climate comes from the
+  parcel's weather history: the last 30 complete calendar years (ERA5 reanalysis via the platform weather
+  history, capped at the latest complete year), aggregated to monthly mean temperature, rainfall and ET0. One
+  trajectory starts in each historical year and cycles through the others in order; the projection reports
+  the median and the 95 % interval (2.5th–97.5th percentiles) across trajectories, so the band reflects climate
+  variability only. With a baseline scenario, its reference campaign is run on the same trajectories and the
+  difference is taken trajectory by trajectory before summarising. If fewer than 25 complete years are
+  available, or the history is not ready, the reference campaign's own climate is repeated, as before, and the
+  gap is listed in `missing`.
 - **Report:** the stored campaigns of the chosen range, with the baseline (a computed reference campaign
   replayed under each campaign's own climate) when one is defined. It follows the structure of VM0042 or the
   Gold Standard SOC framework but is a **monitoring estimate, not a certification**: it lists what certification
@@ -172,6 +180,7 @@ Latin-hypercube samples of the plant-input multiplier. Soil-property uncertainty
 | Reference | Application |
 |-----------|------------|
 | Allen et al. (1998). FAO-56. | ET0 |
+| Hersbach, H. et al. (2020). The ERA5 global reanalysis. Q. J. R. Meteorol. Soc. 146:1999–2049. | Projection climate |
 | Coleman, K. & Jenkinson, D.S. RothC — A model for the turnover of carbon in soil (model description). | RothC |
 | IPCC (2019). 2019 Refinement, Vol. 4, Ch. 11. | N₂O |
 | IPCC (2021). AR6 WG1, Ch. 7. | GWP100 |
@@ -186,4 +195,4 @@ Latin-hypercube samples of the plant-input multiplier. Soil-property uncertainty
 
 ---
 
-*Last updated: 2026-10-10*
+*Last updated: 2026-11-11*
