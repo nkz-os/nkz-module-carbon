@@ -384,3 +384,15 @@ async def test_new_keys_reach_the_client_through_the_route(env, monkeypatch, his
     else:
         assert j["climate"] == {"source": "reference_campaign"}
         assert j["missing"][0]["item"] == "climate_history" and j["project_soc_p025"] == []
+
+
+@pytest.mark.asyncio
+async def test_shorter_horizon_is_a_prefix_of_the_longer_one(env, monkeypatch):  # noqa: F811
+    # The same parcel projected for 5 or 12 years must agree on the first 5 years.
+    _patch(monkeypatch, _hist())
+    await cr.run_campaign("t1", "abc", 2025, today=date(2026, 10, 10))
+    cr._CLIMATE_CACHE.clear() if hasattr(cr, "_CLIMATE_CACHE") else None
+    p5 = await cr.projection("t1", "abc", years=5)
+    p12 = await cr.projection("t1", "abc", years=12)
+    assert p5["project_soc"] == p12["project_soc"][:5]
+    assert p5["project_soc_p975"] == p12["project_soc_p975"][:5]

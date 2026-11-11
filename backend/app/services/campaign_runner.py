@@ -29,7 +29,7 @@ from app.services.campaign_types import (
     OperationsRead,
 )
 from app.services.campaign_reports import (
-    N_TRAJ, build_monitoring_report, combine_months, is_complete, months_from_row, project_soc,
+    MAX_SAMPLED_YEARS, N_TRAJ, build_monitoring_report, combine_months, is_complete, months_from_row, project_soc,
     project_soc_ensemble, sample_sequences,
     summarize,
 )
@@ -417,7 +417,8 @@ async def projection(tenant_id: str, parcel_id: str, years: int = 20) -> dict:
     climate, label, first, last, attribution = history
     out["climate"] = {"source": "history", "years": label, "n_years": len(climate), "attribution": attribution}
     # Same sampled climate sequences for project and baseline: deltas are paired per trajectory.
-    sequences = sample_sequences(len(climate), N_TRAJ, years, f"{short}|{ref_year}|{first}|{last}")
+    sequences = [seq[:years] for seq in sample_sequences(len(climate), N_TRAJ, max(years, MAX_SAMPLED_YEARS),
+                                                         f"{short}|{ref_year}|{first}|{last}")]
     p_trajs = await asyncio.to_thread(project_soc_ensemble, start, climate, ref_months, clay, depth, years,
                                       sequences)
     out["project_soc"], out["project_soc_p025"], out["project_soc_p975"] = summarize(p_trajs)

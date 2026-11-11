@@ -21,6 +21,9 @@ C_TO_CO2 = 44.0 / 12.0
 
 # Bootstrap trajectories per projection (measured: see the final-fix report).
 N_TRAJ = 200
+# Sequences are always drawn for the longest allowed horizon and then cut, so a shorter projection is
+# exactly the first years of a longer one (same request, same numbers).
+MAX_SAMPLED_YEARS = 50
 
 # What a monitoring estimate lacks to be certified (VM0042 / CRCF-style schemes).
 CERTIFICATION_GAPS = (
