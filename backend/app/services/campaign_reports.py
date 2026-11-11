@@ -53,6 +53,45 @@ def project_soc(start: RothCState, months: Sequence[RothCMonth], clay: float, de
     return soc
 
 
+def project_soc_ensemble(start: RothCState, climate_years: Sequence[Sequence[RothCMonth]],
+                         inputs: Sequence[RothCMonth], clay: float, depth: float,
+                         years: int) -> list[list[float]]:
+    """One SOC trajectory per starting climate year.
+
+    Trajectory s uses climate year (s + k) mod N in projection year k, with the cover and
+    soil inputs of ``inputs`` (the climate of ``inputs`` itself is ignored).
+    """
+    n = len(climate_years)
+    combined = [combine_months(c, inputs) for c in climate_years]
+    trajs = []
+    for s in range(n):
+        soc, state = [], start
+        for k in range(years):
+            state = run_months(state, combined[(s + k) % n], clay, depth).final
+            soc.append(state.pools.total)
+        trajs.append(soc)
+    return trajs
+
+
+def _quantile(sorted_values: Sequence[float], q: float) -> float:
+    """Linear interpolation between order statistics, position q * (n - 1)."""
+    pos = q * (len(sorted_values) - 1)
+    lo = int(pos)
+    hi = min(lo + 1, len(sorted_values) - 1)
+    return sorted_values[lo] + (sorted_values[hi] - sorted_values[lo]) * (pos - lo)
+
+
+def summarize(trajs: Sequence[Sequence[float]]) -> tuple[list[float], list[float], list[float]]:
+    """Per projection year: median, 2.5th and 97.5th percentile across trajectories."""
+    med, lo, hi = [], [], []
+    for year_values in zip(*trajs):
+        v = sorted(year_values)
+        med.append(_quantile(v, 0.5))
+        lo.append(_quantile(v, 0.025))
+        hi.append(_quantile(v, 0.975))
+    return med, lo, hi
+
+
 def is_complete(row: dict) -> bool:
     return str(row.get("computed_through") or "") == f"{row['campaign_label']}-12-31"
 

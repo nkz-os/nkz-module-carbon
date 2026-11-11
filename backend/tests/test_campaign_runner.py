@@ -10,6 +10,7 @@ from test_campaign_balance import P, SOIL, _ndvi, _weather  # noqa: E402
 
 from app.ngsild.campaign_entities import build_campaign_stock  # noqa: E402
 from app.platform.errors import SourceUnavailable  # noqa: E402
+from app.platform.weather_history_client import HistoryResult  # noqa: E402
 from app.services import campaign_runner as cr  # noqa: E402
 from app.services.campaign_types import HarvestEvent, OperationsRead  # noqa: E402
 from app.services.roth_c_model import RothCPools, RothCState  # noqa: E402
@@ -85,6 +86,10 @@ def env(monkeypatch):
                      ("fetch_parcel_coordinates", coords), ("resolve_crop_params", params),
                      ("fetch_parcel_entity", parcel)]:
         monkeypatch.setattr(cr, name, fn)
+    async def no_history(urn, tenant, start, end, client=None):
+        return HistoryResult(ready=False, reason="not in this test")
+
+    monkeypatch.setattr(cr, "fetch_climate_history", no_history)  # no network; projection falls back
     monkeypatch.setattr(cr, "get_orion_client", lambda: store)
     return store, calls
 
