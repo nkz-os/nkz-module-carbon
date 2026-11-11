@@ -79,6 +79,7 @@
     "catch_crop": "Cultura intercalar"
   },
   "missing": {
+    "climate_history": "Histórico climático da parcela",
     "weather": "Meteorologia diária incompleta",
     "ndvi": "Faltam cenas NDVI em dias de cultura",
     "soil": "Sem dados de solo da parcela",
@@ -102,6 +103,7 @@
     "cycle_end": "A data de fim planeada já passou sem fim registado"
   },
   "effect": {
+    "projection uses the reference campaign's climate": "A projeção usa o clima da campanha de referência",
     "no_balance": "Não é possível calcular a campanha",
     "tier1_partial": "Produção vegetal calculada apenas em parte",
     "tier1_unavailable": "Sem produção vegetal para essa cultura",
@@ -206,8 +208,14 @@
     "irrigation_unknown": "sem regas registadas nem declaradas (tratado como sequeiro)"
   },
   "baseline_incomplete": "Redução não calculável: falta a variação de COS (do projeto ou da linha de base) em {{years}}",
+  "climate_band": "Intervalo climático de 95 %",
+  "climate_source_history": "Clima: histórico ERA5 {{years}} ({{n}} anos)",
+  "climate_source_campaign": "Clima: o da campanha {{year}}",
+  "climate_attribution": "Contém informação do serviço de alterações climáticas Copernicus (reanálise ERA5). Generated using Copernicus Climate Change Service information.",
   "assumption": {
     "repeat_reference": "Clima e maneio de {{year}} repetidos todos os anos",
+    "climate_history": "Clima de {{from}}–{{to}} ({{n}} anos, reanálise ERA5) como {{n}} trajetórias",
+    "repeat_reference_management": "Maneio de {{year}} repetido todos os anos",
     "no_baseline": "Sem linha de base definida: só se projeta o maneio atual",
     "baseline_same_climate": "Linha de base: maneio de {{year}} com o mesmo clima"
   }

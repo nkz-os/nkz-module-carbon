@@ -350,6 +350,13 @@ function ProjectionTab({ projection, t }: { projection: ProjectionData | null; t
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <SectionLabel text={t('projection')} />
       <CarbonProjectionChart data={projection} />
+      {projection.climate && (
+        <div style={{ fontSize: '12px', color: colors.textSecondary }}>
+          {projection.climate.source === 'history'
+            ? t('climate_source_history', { years: projection.climate.years, n: projection.climate.n_years })
+            : t('climate_source_campaign', { year: projection.reference_year })}
+        </div>
+      )}
       {projection.assumptions.length > 0 && (
         <div>
           <SectionLabel text={t('assumptions')} />
@@ -358,11 +365,17 @@ function ProjectionTab({ projection, t }: { projection: ProjectionData | null; t
               const code = projection.assumption_codes?.[i];
               return (
                 <li key={a}>
-                  {code ? t(`assumption.${code.code}`, { year: code.year, defaultValue: a }) : a}
+                  {code ? t(`assumption.${code.code}`, { ...code, defaultValue: a }) : a}
                 </li>
               );
             })}
           </ul>
+        </div>
+      )}
+      {projection.missing.length > 0 && <CarbonMissingList missing={projection.missing} />}
+      {projection.climate?.source === 'history' && (
+        <div style={{ fontSize: '11px', color: colors.textMuted }}>
+          {t('climate_attribution')}
         </div>
       )}
     </div>

@@ -79,6 +79,7 @@
     "catch_crop": "Tarteko laborea"
   },
   "missing": {
+    "climate_history": "Lursailaren klima-historia",
     "weather": "Eguneko meteorologia osatu gabe",
     "ndvi": "NDVI irudiak falta dira labore-egunetan",
     "soil": "Lurzatiak ez du lurzoru-daturik",
@@ -102,6 +103,7 @@
     "cycle_end": "Planifikatutako amaiera-data igaro da, amaierarik erregistratu gabe"
   },
   "effect": {
+    "projection uses the reference campaign's climate": "Proiekzioak erreferentziako kanpainaren klima erabiltzen du",
     "no_balance": "Ezin da kanpaina kalkulatu",
     "tier1_partial": "Landare-ekoizpena zati batean bakarrik kalkulatuta",
     "tier1_unavailable": "Labore horrentzat ez dago landare-ekoizpenik",
@@ -206,8 +208,14 @@
     "irrigation_unknown": "ureztatzerik ez erregistratuta ez adierazita (lehorreko gisa tratatzen da)"
   },
   "baseline_incomplete": "Ezin da murrizketa kalkulatu: COS aldaketa falta da (proiektuarena edo oinarri-lerroarena) {{years}} urtean",
+  "climate_band": "% 95eko klima-tartea",
+  "climate_source_history": "Klima: ERA5 historikoa {{years}} ({{n}} urte)",
+  "climate_source_campaign": "Klima: {{year}} kanpainakoa",
+  "climate_attribution": "Copernicus Klima Aldaketaren Zerbitzuaren informazioa du (ERA5 berranalisia). Generated using Copernicus Climate Change Service information.",
   "assumption": {
     "repeat_reference": "{{year}} urteko klima eta maneiua urtero errepikatzen dira",
+    "climate_history": "{{from}}–{{to}} bitarteko klima ({{n}} urte, ERA5 berranalisia) {{n}} ibilbide gisa",
+    "repeat_reference_management": "{{year}} urteko maneiua urtero errepikatzen da",
     "no_baseline": "Oinarri-lerrorik ez: egungo maneiua bakarrik proiektatzen da",
     "baseline_same_climate": "Oinarri-lerroa: {{year}} urteko maneiua klima berarekin"
   }

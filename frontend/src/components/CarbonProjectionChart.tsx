@@ -24,16 +24,26 @@ const COLORS = {
 const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) => {
   const { t } = useTranslation('carbon');
 
-  const { points, yMax, yMin, pathBaseline, pathProject } = useMemo(() => {
+  const { points, yMax, yMin, pathBaseline, pathProject, bandProject, bandBaseline } = useMemo(() => {
     const years = data.projection_years;
     const baseline = data.baseline_soc;
     const project = data.project_soc;
 
     if (!project.length) {
-      return { points: [], yMax: 0, yMin: 0, pathBaseline: '', pathProject: '' };
+      return { points: [], yMax: 0, yMin: 0, pathBaseline: '', pathProject: '', bandProject: '', bandBaseline: '' };
     }
 
-    const all = [...baseline, ...project];
+    const lo = data.project_soc_p025 ?? [];
+    const hi = data.project_soc_p975 ?? [];
+    const bLo = data.baseline_soc_p025 ?? [];
+    const bHi = data.baseline_soc_p975 ?? [];
+    const projectBand = lo.length === project.length && hi.length === project.length;
+    const baselineBand = baseline.length > 0 && bLo.length === baseline.length && bHi.length === baseline.length;
+    const all = [
+      ...baseline, ...project,
+      ...(projectBand ? [...lo, ...hi] : []),
+      ...(baselineBand ? [...bLo, ...bHi] : []),
+    ];
     const yMaxVal = Math.max(...all) * 1.1;
     const yMinVal = Math.min(...all) * 0.9;
     const range = yMaxVal - yMinVal || 1;
@@ -56,8 +66,18 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
         })
         .join('');
 
+    // Closed polygon: upper edge left to right, lower edge right to left.
+    const buildBand = (l: number[], h: number[]) =>
+      h.map((v, i) => `${i === 0 ? 'M' : 'L'}${scaleX(i)},${scaleY(v)}`).join('') +
+      l.map((_, i) => {
+        const j = l.length - 1 - i;
+        return `L${scaleX(j)},${scaleY(l[j])}`;
+      }).join('') + 'Z';
+
     return {
       points: pts,
+      bandProject: projectBand ? buildBand(lo, hi) : '',
+      bandBaseline: baselineBand ? buildBand(bLo, bHi) : '',
       yMax: yMaxVal,
       yMin: yMinVal,
       pathBaseline: baseline.length ? buildPath(baseline) : '',
@@ -164,6 +184,10 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
           {t('units.tC_ha')}
         </text>
 
+        {/* 95 % climate interval, drawn under the median lines */}
+        {bandBaseline && <path d={bandBaseline} fill={COLORS.baseline} fillOpacity={0.15} stroke="none" />}
+        {bandProject && <path d={bandProject} fill={COLORS.project} fillOpacity={0.2} stroke="none" />}
+
         {/* Baseline line */}
         {hasBaseline && (
           <path d={pathBaseline} fill="none" stroke={COLORS.baseline} strokeWidth={2} strokeDasharray="6,3" />
@@ -172,7 +196,7 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
         <path d={pathProject} fill="none" stroke={COLORS.project} strokeWidth={2.5} />
 
         {/* Legend */}
-        <g transform={`translate(${CHART_WIDTH - PADDING.right - 100}, ${PADDING.top + 4})`}>
+        <g transform={`translate(${CHART_WIDTH - PADDING.right - 150}, ${PADDING.top + 4})`}>
           <line x1={0} y1={0} x2={16} y2={0} stroke={COLORS.project} strokeWidth={2.5} />
           <text x={20} y={4} fontSize={11} fill={COLORS.project}>
             {t('project')}
@@ -182,6 +206,14 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
               <line x1={0} y1={16} x2={16} y2={16} stroke={COLORS.baseline} strokeWidth={2} strokeDasharray="6,3" />
               <text x={20} y={20} fontSize={11} fill={COLORS.baseline}>
                 {t('baseline')}
+              </text>
+            </>
+          )}
+          {bandProject && (
+            <>
+              <rect x={0} y={hasBaseline ? 28 : 12} width={16} height={8} fill={COLORS.project} fillOpacity={0.2} />
+              <text x={20} y={hasBaseline ? 36 : 20} fontSize={11} fill={COLORS.annotation}>
+                {t('climate_band')}
               </text>
             </>
           )}

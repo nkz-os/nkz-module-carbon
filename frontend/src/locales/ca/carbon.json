@@ -79,6 +79,7 @@
     "catch_crop": "Cultiu intermedi"
   },
   "missing": {
+    "climate_history": "Historial climàtic de la parcel·la",
     "weather": "Meteorologia diària incompleta",
     "ndvi": "Falten escenes NDVI en dies de cultiu",
     "soil": "No hi ha dades de sòl de la parcel·la",
@@ -102,6 +103,7 @@
     "cycle_end": "La data de fi planificada ja ha passat sense fi registrada"
   },
   "effect": {
+    "projection uses the reference campaign's climate": "La projecció usa el clima de la campanya de referència",
     "no_balance": "No es pot calcular la campanya",
     "tier1_partial": "Producció vegetal calculada només en part",
     "tier1_unavailable": "Sense producció vegetal per a aquest cultiu",
@@ -206,8 +208,14 @@
     "irrigation_unknown": "sense regs registrats ni declarats (es tracta com a secà)"
   },
   "baseline_incomplete": "Sense reducció calculable: falta el canvi de COS (del projecte o de la línia base) a {{years}}",
+  "climate_band": "Interval climàtic del 95 %",
+  "climate_source_history": "Clima: històric ERA5 {{years}} ({{n}} anys)",
+  "climate_source_campaign": "Clima: el de la campanya {{year}}",
+  "climate_attribution": "Conté informació del servei de canvi climàtic de Copernicus (reanàlisi ERA5). Generated using Copernicus Climate Change Service information.",
   "assumption": {
     "repeat_reference": "Es repeteixen cada any el clima i el maneig de {{year}}",
+    "climate_history": "Clima de {{from}}–{{to}} ({{n}} anys, reanàlisi ERA5) com a {{n}} trajectòries",
+    "repeat_reference_management": "Es repeteix cada any el maneig de {{year}}",
     "no_baseline": "Sense línia base definida: només es projecta el maneig actual",
     "baseline_same_climate": "Línia base: maneig de {{year}} amb el mateix clima"
   }

@@ -79,6 +79,7 @@
     "catch_crop": "Catch crop"
   },
   "missing": {
+    "climate_history": "Parcel climate history",
     "weather": "Incomplete daily weather",
     "ndvi": "NDVI scenes missing on crop days",
     "soil": "No soil data for the parcel",
@@ -102,6 +103,7 @@
     "cycle_end": "Planned end date has passed without a recorded end"
   },
   "effect": {
+    "projection uses the reference campaign's climate": "The projection uses the reference campaign's climate",
     "no_balance": "The campaign cannot be computed",
     "tier1_partial": "Plant production only partly computed",
     "tier1_unavailable": "No plant production for that crop",
@@ -206,8 +208,14 @@
     "irrigation_unknown": "no irrigation recorded or declared (treated as rainfed)"
   },
   "baseline_incomplete": "No reduction computable: SOC change missing (project or baseline) in {{years}}",
+  "climate_band": "95 % climate interval",
+  "climate_source_history": "Climate: ERA5 history {{years}} ({{n}} years)",
+  "climate_source_campaign": "Climate: that of the {{year}} campaign",
+  "climate_attribution": "Contains information from the Copernicus Climate Change Service (ERA5 reanalysis). Generated using Copernicus Climate Change Service information.",
   "assumption": {
     "repeat_reference": "Climate and management of {{year}} repeated every year",
+    "climate_history": "Climate of {{from}}–{{to}} ({{n}} years, ERA5 reanalysis) as {{n}} trajectories",
+    "repeat_reference_management": "Management of {{year}} repeated every year",
     "no_baseline": "No baseline defined: only the current management is projected",
     "baseline_same_climate": "Baseline: management of {{year}} under the same climate"
   }
