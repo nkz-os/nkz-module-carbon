@@ -1,14 +1,16 @@
 """Projection and monitoring report built from stored campaign balances.
 
-Nothing here invents inputs: the projection repeats a computed campaign, and the
-baseline is a computed reference campaign replayed under each campaign's own
-climate. The report is a monitoring estimate, not a certification.
+Nothing here invents inputs: the projection repeats the management of a computed
+campaign under resampled years of the parcel's climate history (or, without a usable
+history, that campaign's own climate), and the baseline is a computed reference
+campaign replayed under each campaign's own climate. The report is a monitoring estimate, not a certification.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import random
 from datetime import datetime, timezone
 from typing import Any, Optional, Sequence
 
@@ -16,6 +18,9 @@ from app.services.campaign_balance import ENGINE_VERSION
 from app.services.roth_c_model import RothCMonth, RothCState, pan_evap_from_et0, run_months
 
 C_TO_CO2 = 44.0 / 12.0
+
+# Bootstrap trajectories per projection (measured: see the final-fix report).
+N_TRAJ = 200
 
 # What a monitoring estimate lacks to be certified (VM0042 / CRCF-style schemes).
 CERTIFICATION_GAPS = (
@@ -53,21 +58,30 @@ def project_soc(start: RothCState, months: Sequence[RothCMonth], clay: float, de
     return soc
 
 
+def sample_sequences(n_climate_years: int, n_traj: int, years: int, seed: str) -> list[list[int]]:
+    """Bootstrap: for each trajectory and projection year, a climate year drawn with replacement.
+
+    Deterministic for a given ``seed``. Project and baseline must use the same sequences.
+    """
+    rng = random.Random(seed)
+    pool = range(n_climate_years)
+    return [[rng.choice(pool) for _ in range(years)] for _ in range(n_traj)]
+
+
 def project_soc_ensemble(start: RothCState, climate_years: Sequence[Sequence[RothCMonth]],
                          inputs: Sequence[RothCMonth], clay: float, depth: float,
-                         years: int) -> list[list[float]]:
-    """One SOC trajectory per starting climate year.
+                         years: int, sequences: Sequence[Sequence[int]]) -> list[list[float]]:
+    """One SOC trajectory per climate sequence (indices into ``climate_years``).
 
-    Trajectory s uses climate year (s + k) mod N in projection year k, with the cover and
+    Projection year k of trajectory s uses climate year ``sequences[s][k]``, with the cover and
     soil inputs of ``inputs`` (the climate of ``inputs`` itself is ignored).
     """
-    n = len(climate_years)
     combined = [combine_months(c, inputs) for c in climate_years]
     trajs = []
-    for s in range(n):
+    for seq in sequences:
         soc, state = [], start
         for k in range(years):
-            state = run_months(state, combined[(s + k) % n], clay, depth).final
+            state = run_months(state, combined[seq[k]], clay, depth).final
             soc.append(state.pools.total)
         trajs.append(soc)
     return trajs

@@ -153,14 +153,19 @@ Latin-hypercube samples of the plant-input multiplier. Soil-property uncertainty
 
 - **Projection:** RothC runs from the 31 December pools of the last complete campaign with a soil balance, with
   that campaign's management (cover, plant and manure inputs) repeated every year. The climate comes from the
-  parcel's weather history: the last 30 complete calendar years (ERA5 reanalysis via the platform weather
-  history, capped at the latest complete year), aggregated to monthly mean temperature, rainfall and ET0. One
-  trajectory starts in each historical year and cycles through the others in order; the projection reports
-  the median and the 95 % interval (2.5th–97.5th percentiles) across trajectories, so the band reflects climate
-  variability only. With a baseline scenario, its reference campaign is run on the same trajectories and the
-  difference is taken trajectory by trajectory before summarising. If fewer than 25 complete years are
-  available, or the history is not ready, the reference campaign's own climate is repeated, as before, and the
-  gap is listed in `missing`.
+  parcel's weather history: the 30 complete calendar years ending with the reference campaign (not before 1991;
+  ERA5 reanalysis via the platform weather history; if the history ends earlier, the window ends the year
+  before), aggregated to monthly mean temperature (mean of the daily (tmin + tmax) / 2, as in the campaign
+  balance), rainfall and ET0. The projection draws 200 trajectories by bootstrap: in each projection year of
+  each trajectory, a historical climate year is drawn with replacement (fixed seed per request, so the same
+  request gives the same numbers). The projection reports the median and the range 2.5th–97.5th percentiles
+  across trajectories. **What that range is:** the spread across resampled historical climate years, i.e. the
+  observed year-to-year climate variability under a stationary climate of 1991 onward, with no warming trend.
+  It is not a probabilistic forecast, and it excludes model, parameter, input and management uncertainty. With
+  a baseline scenario, its reference campaign is run on the same sampled sequences and the difference is taken
+  trajectory by trajectory before summarising. If fewer than 25 complete years are available, or the history is
+  not ready or not available, the reference campaign's own climate is repeated, as before, and the gap is
+  listed in `missing` (with a different reason when the history is not being prepared but unavailable).
 - **Report:** the stored campaigns of the chosen range, with the baseline (a computed reference campaign
   replayed under each campaign's own climate) when one is defined. It follows the structure of VM0042 or the
   Gold Standard SOC framework but is a **monitoring estimate, not a certification**: it lists what certification

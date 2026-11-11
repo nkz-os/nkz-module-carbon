@@ -9,7 +9,8 @@ URN = "urn:ngsi-ld:AgriParcel:p1"
 
 
 def _day(d, t=10.0, p=1.0, e=2.0):
-    return {"date": d, "tmean_c": t, "precip_mm": p, "et0_mm": e}
+    return {"date": d, "tmin_c": None if t is None else t - 5.0, "tmax_c": None if t is None else t + 5.0,
+            "precip_mm": p, "et0_mm": e}
 
 
 def _client(handler):
@@ -32,10 +33,11 @@ async def test_ready_history_parses_days_and_signs_request(monkeypatch):
     assert r.ready and r.attribution == "Copernicus" and r.years_label == "1996–1997"
     assert r.latest_available == date(2026, 11, 9)
     assert r.days[0].complete and not r.days[1].complete
+    assert r.days[0].tmean_c == 10.0
     assert seen["h"]["x-tenant-id"] == "t1" and seen["h"]["x-user-id"] == "carbon-worker"
     assert seen["h"]["x-auth-signature"]
     assert "/api/weather/parcel/p1/history" in seen["url"]
-    assert "resolution=daily" in seen["url"] and "vars=tmean_c%2Cprecip_mm%2Cet0_mm" in seen["url"]
+    assert "resolution=daily" in seen["url"] and "vars=tmin_c%2Ctmax_c%2Cprecip_mm%2Cet0_mm" in seen["url"]
     assert "start=1996-01-01" in seen["url"] and "end=2025-12-31" in seen["url"]
 
 
@@ -50,7 +52,7 @@ async def test_incomplete_years_is_not_ready():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", [401, 404, 500, 503])
+@pytest.mark.parametrize("status", [401, 404, 422, 500, 503])
 async def test_http_errors_are_not_ready_and_raise_nothing(status):
     async with _client(lambda r: httpx.Response(status)) as c:
         r = await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c)
@@ -84,7 +86,7 @@ async def test_read_timeout_is_not_ready_and_timeout_is_configurable():
 
     async with _client(handler) as c:
         r = await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c)
-        assert not r.ready and seen["timeout"] == 8.0
+        assert not r.ready and seen["timeout"] == 12.0
         await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c, timeout=3.0)
         assert seen["timeout"] == 3.0
 
@@ -96,3 +98,31 @@ async def test_incomplete_and_empty_log_one_warning(caplog, body):
         with caplog.at_level("WARNING"):
             await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c)
     assert len([x for x in caplog.records if x.levelname == "WARNING"]) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status,permanent", [(401, True), (404, True), (422, True), (400, True),
+                                              (500, False), (502, False), (503, False)])
+async def test_status_classifies_transient_vs_permanent(status, permanent):
+    async with _client(lambda r: httpx.Response(status, json={"error": "x"})) as c:
+        r = await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c)
+    assert not r.ready and r.permanent is permanent and r.status == status and not r.end_after_latest
+
+
+@pytest.mark.asyncio
+async def test_real_400_for_end_after_latest_is_flagged_not_permanent():
+    body = {"error": "end is after the latest available day (2025-11-09)"}   # shape of weather-api
+    async with _client(lambda r: httpx.Response(400, json=body)) as c:
+        r = await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c)
+    assert not r.ready and r.end_after_latest and not r.permanent
+
+
+@pytest.mark.asyncio
+async def test_transient_outcomes_are_not_permanent():
+    def boom(req):
+        raise httpx.ReadTimeout("slow")
+
+    async with _client(boom) as c:
+        assert not (await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c)).permanent
+    async with _client(lambda r: httpx.Response(200, json={"days": []})) as c:
+        assert not (await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c)).permanent

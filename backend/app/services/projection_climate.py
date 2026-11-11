@@ -15,6 +15,7 @@ from app.services.roth_c_model import pan_evap_from_et0
 
 MIN_CLIMATE_YEARS = 25
 WINDOW_YEARS = 30
+MIN_HISTORY_YEAR = 1991   # weather-api rejects an earlier start
 
 MonthClimate = tuple[float, float, float]  # temp_c, rain_mm, pan_evap_mm
 

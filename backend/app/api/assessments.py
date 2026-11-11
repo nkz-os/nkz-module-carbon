@@ -43,7 +43,11 @@ async def get_projection(
     years: int = Query(default=20, ge=1, le=50),
     auth: AuthContext = require_auth(),
 ):
-    """SOC projection from the last complete campaign (its climate and management repeated).
+    """SOC projection from the last complete campaign: its management repeated every year.
+
+    Climate: resampled years of the parcel's history (1991 on), giving a 2.5-97.5 % range
+    of observed year-to-year variability (no climate-change trend, no model or input
+    uncertainty); without a usable history, the reference campaign's own climate.
 
     With a baseline scenario, its reference campaign is replayed under the same climate.
     Without a complete campaign the lists are empty and ``missing`` says why.
