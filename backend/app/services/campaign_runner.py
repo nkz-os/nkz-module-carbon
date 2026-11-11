@@ -364,7 +364,7 @@ async def projection(tenant_id: str, parcel_id: str, years: int = 20) -> dict:
     ref = next((r for r in reversed(rows) if _usable(r) and is_complete(r)), None)
     out = {"entity_id": short, "projection_years": years, "reference_year": None, "baseline_soc": [],
            "project_soc": [], "annual_delta_tC_ha_yr": [], "assumptions": [], "assumption_codes": [],
-           "missing": [], "project_soc_p025": [], "project_soc_p975": [], "baseline_soc_p025": [],
+           "missing": [], "climate": {"source": "reference_campaign"}, "project_soc_p025": [], "project_soc_p975": [], "baseline_soc_p025": [],
            "baseline_soc_p975": [], "annual_delta_p025": [], "annual_delta_p975": []}
 
     def assume(text: str, code: str, **params):
@@ -428,15 +428,22 @@ async def projection(tenant_id: str, parcel_id: str, years: int = 20) -> dict:
 async def _climate_trajectories(tenant_id: str, parcel_id: str, ref_year: int):
     """RothC climate years from the parcel history, or None when it is not usable.
 
-    Window: the 30 calendar years ending with the reference campaign. Only complete years
+    Window: the 30 calendar years ending with the reference campaign, or with the last year
+    fully covered by ``latest_available`` if that is earlier. Only complete years
     count; with fewer than MIN_CLIMATE_YEARS the history is not used at all (never mixed
     with the reference year).
     """
-    first_year = ref_year - (WINDOW_YEARS - 1)
-    res = await fetch_climate_history(parcel_id, tenant_id, date(first_year, 1, 1), date(ref_year, 12, 31))
+    # One extra year is requested so the window can slide back when latest_available cuts it.
+    res = await fetch_climate_history(parcel_id, tenant_id, date(ref_year - WINDOW_YEARS, 1, 1),
+                                      date(ref_year, 12, 31))
     if not res.ready:
         return None
-    years = climate_years(res.days, first_year, ref_year)
+    end_year = ref_year
+    latest = res.latest_available
+    if latest is not None and latest < date(ref_year, 12, 31):
+        end_year = min(ref_year, latest.year if latest >= date(latest.year, 12, 31) else latest.year - 1)
+    first_year = end_year - (WINDOW_YEARS - 1)
+    years = climate_years(res.days, first_year, end_year)
     if not usable(years):
         logger.info("climate history unusable tenant=%s parcel=%s: %d complete years",
                     tenant_id, parcel_id, len(years))

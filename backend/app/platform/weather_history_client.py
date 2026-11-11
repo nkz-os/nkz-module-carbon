@@ -13,12 +13,14 @@ from typing import Optional
 
 import httpx
 
-from app.platform.daily_weather_client import WEATHER_API_URL, _TIMEOUT_S, _num, _weather_api_headers
+from app.platform.daily_weather_client import WEATHER_API_URL, _num, _weather_api_headers
 from app.platform.http import http_get
 
 logger = logging.getLogger(__name__)
 
 HISTORY_VARS = "tmean_c,precip_mm,et0_mm"
+# Shorter than the daily client: a cold history can take far longer; the caller falls back.
+HISTORY_TIMEOUT_S = 8.0
 
 
 @dataclass(frozen=True)
@@ -53,6 +55,7 @@ async def fetch_climate_history(
     start: date,
     end: date,
     client: httpx.AsyncClient | None = None,
+    timeout: float = HISTORY_TIMEOUT_S,
 ) -> HistoryResult:
     short = parcel_urn.split(":")[-1]
     try:
@@ -62,7 +65,7 @@ async def fetch_climate_history(
             params={"start": start.isoformat(), "end": end.isoformat(),
                     "resolution": "daily", "vars": HISTORY_VARS},
             headers=_weather_api_headers(tenant_id),
-            timeout=_TIMEOUT_S,
+            timeout=timeout,
         )
     except httpx.HTTPError as exc:
         logger.warning("climate history unreachable tenant=%s parcel=%s: %s", tenant_id, short, exc)
@@ -80,9 +83,12 @@ async def fetch_climate_history(
         logger.warning("climate history unreadable tenant=%s parcel=%s: %s", tenant_id, short, exc)
         return _not_ready("weather-api answer unreadable")
     if body.get("incomplete_years"):
+        logger.warning("climate history incomplete tenant=%s parcel=%s years=%s", tenant_id, short,
+                       body["incomplete_years"])
         return HistoryResult(ready=False, latest_available=latest,
                              reason=f"history incomplete for years {body['incomplete_years']}")
     if not days:
+        logger.warning("climate history empty tenant=%s parcel=%s", tenant_id, short)
         return HistoryResult(ready=False, latest_available=latest, reason="history has no days")
     years = sorted({d.day.year for d in days})
     label = f"{years[0]}–{years[-1]}"

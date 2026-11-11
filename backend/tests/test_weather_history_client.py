@@ -72,3 +72,27 @@ async def test_garbage_body_is_not_ready():
     async with _client(lambda r: httpx.Response(200, json={"days": [{"date": "nope"}]})) as c:
         r = await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c)
     assert not r.ready
+
+
+@pytest.mark.asyncio
+async def test_read_timeout_is_not_ready_and_timeout_is_configurable():
+    seen = {}
+
+    def handler(req):
+        seen["timeout"] = req.extensions["timeout"]["read"]
+        raise httpx.ReadTimeout("slow")
+
+    async with _client(handler) as c:
+        r = await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c)
+        assert not r.ready and seen["timeout"] == 8.0
+        await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c, timeout=3.0)
+        assert seen["timeout"] == 3.0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("body", [{"days": [_day("2025-01-01")], "incomplete_years": [1996]}, {"days": []}])
+async def test_incomplete_and_empty_log_one_warning(caplog, body):
+    async with _client(lambda r: httpx.Response(200, json=body)) as c:
+        with caplog.at_level("WARNING"):
+            await fetch_climate_history(URN, "t1", date(1996, 1, 1), date(2025, 12, 31), c)
+    assert len([x for x in caplog.records if x.levelname == "WARNING"]) == 1

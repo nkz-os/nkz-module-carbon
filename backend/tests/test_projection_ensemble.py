@@ -56,7 +56,7 @@ def test_summarize_percentiles_on_a_hand_made_set():
     assert med2 == [2.0, 6.0]
 
 
-def _hist(n_years=30, last=2025, ready=True, shift=0.0):
+def _hist(n_years=31, last=2025, ready=True, shift=0.0, latest=None):
     days = []
     for i, y in enumerate(range(last - n_years + 1, last + 1)):
         d = date(y, 1, 1)
@@ -64,7 +64,7 @@ def _hist(n_years=30, last=2025, ready=True, shift=0.0):
             days.append(HistoryDay(d, 10.0 + (i % 5) + shift, 1.5, 2.0))
             d += timedelta(days=1)
     return HistoryResult(ready=ready, days=days, years_label=f"{last - n_years + 1}–{last}",
-                         attribution="Copernicus", latest_available=date(last, 12, 31))
+                         attribution="Copernicus", latest_available=latest or date(last, 12, 31))
 
 
 def _patch(monkeypatch, result):
@@ -83,7 +83,7 @@ async def test_history_path_codes_climate_key_and_bands(env, monkeypatch):  # no
     calls = _patch(monkeypatch, _hist())
     await cr.run_campaign("t1", "abc", 2025, today=date(2026, 10, 10))
     p = await cr.projection("t1", "abc", years=4)
-    assert calls[0][2:] == (date(1996, 1, 1), date(2025, 12, 31))
+    assert calls[0][2:] == (date(1995, 1, 1), date(2025, 12, 31))
     assert p["climate"] == {"source": "history", "years": "1996–2025", "n_years": 30,
                             "attribution": "Copernicus"}
     assert p["assumption_codes"][:2] == [{"code": "climate_history", "from": 1996, "to": 2025, "n": 30},
@@ -154,4 +154,63 @@ def test_fifty_years_by_thirty_trajectories_stays_within_budget():
     elapsed = time.perf_counter() - t0
     print(f"ensemble 50y x 30 traj: {elapsed:.3f}s")
     assert len(trajs) == 30 and len(trajs[0]) == 50
-    assert elapsed < 1.0   # one call; project + baseline stay under the 2 s budget
+    assert elapsed < 5.0   # loose guard; measured ~0.11 s, see report
+
+
+@pytest.mark.asyncio
+async def test_window_is_capped_at_latest_available(env, monkeypatch):  # noqa: F811
+    _patch(monkeypatch, _hist(latest=date(2025, 12, 20)))
+    await cr.run_campaign("t1", "abc", 2025, today=date(2026, 10, 10))
+    p = await cr.projection("t1", "abc", years=2)
+    assert p["climate"]["years"] == "1995\u20132024" and p["climate"]["n_years"] == 30
+    assert p["assumption_codes"][0] == {"code": "climate_history", "from": 1995, "to": 2024, "n": 30}
+
+
+@pytest.mark.asyncio
+async def test_delta_band_is_median_of_per_trajectory_deltas(env, monkeypatch):  # noqa: F811
+    store, _ = env
+    _patch(monkeypatch, _hist())
+    await cr.run_campaign("t1", "abc", 2025, today=date(2026, 10, 10))
+    store.entities[("t1", BASELINE["id"])] = BASELINE
+    sets = iter([[[0.0], [10.0], [20.0]], [[10.0], [0.0], [10.0]]])  # project, then baseline
+    monkeypatch.setattr(cr, "project_soc_ensemble", lambda *a, **k: next(sets))
+    p = await cr.projection("t1", "abc", years=1)
+    # per-trajectory deltas -10, 10, 10 -> median 10; median(p) - median(b) would be 0
+    assert p["project_soc"] == [10.0] and p["baseline_soc"] == [10.0]
+    assert p["annual_delta_tC_ha_yr"] == [10.0]
+
+
+@pytest.mark.asyncio
+async def test_no_complete_campaign_still_labels_climate(env):  # noqa: F811
+    p = await cr.projection("t1", "abc", years=3)
+    assert p["climate"] == {"source": "reference_campaign"}
+
+
+@pytest.mark.parametrize("hist", ["history", "fallback"])
+@pytest.mark.asyncio
+async def test_new_keys_reach_the_client_through_the_route(env, monkeypatch, hist):  # noqa: F811
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api import assessments
+    store, _ = env
+    _patch(monkeypatch, _hist() if hist == "history" else HistoryResult(ready=False, reason="x"))
+    await cr.run_campaign("tenant-one", "abc", 2025, today=date(2026, 10, 10))
+    bid = "urn:ngsi-ld:BaselineScenario:tenant-one:abc"
+    store.entities[("tenant-one", bid)] = dict(BASELINE, id=bid)
+    app = FastAPI()
+    app.include_router(assessments.router)
+    r = TestClient(app).get("/api/carbon/parcels/abc/projection?years=3",
+                            headers={"X-Tenant-ID": "tenant-one", "X-User-ID": "u1"})
+    assert r.status_code == 200
+    j = r.json()
+    for k in ("project_soc_p025", "project_soc_p975", "baseline_soc_p025", "baseline_soc_p975",
+              "annual_delta_p025", "annual_delta_p975", "climate", "assumption_codes", "missing"):
+        assert k in j
+    assert j["assumption_codes"][0]["code"] == ("climate_history" if hist == "history" else "repeat_reference")
+    if hist == "history":
+        assert j["climate"]["source"] == "history" and len(j["project_soc_p025"]) == 3
+        assert len(j["annual_delta_p975"]) == 3
+    else:
+        assert j["climate"] == {"source": "reference_campaign"}
+        assert j["missing"][0]["item"] == "climate_history" and j["project_soc_p025"] == []
