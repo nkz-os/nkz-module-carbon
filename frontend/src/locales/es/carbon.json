@@ -79,6 +79,7 @@
     "catch_crop": "Cultivo intermedio"
   },
   "missing": {
+    "climate_history": "Historial climático de la parcela",
     "weather": "Meteorología diaria incompleta",
     "ndvi": "Faltan escenas NDVI en días de cultivo",
     "soil": "No hay datos de suelo de la parcela",
@@ -99,7 +100,8 @@
     "cover_mismatch": "El NDVI ve vegetación en días sin ciclo de cultivo",
     "osavi": "Faltan escenas OSAVI en días de cultivo leñoso: calcule OSAVI en Vegetación",
     "cycle_lifecycle": "Ciclo de vida no registrado: se supone perenne por la especie",
-    "cycle_end": "Fecha de fin planificada ya pasada, sin fin registrado"
+    "cycle_end": "Fecha de fin planificada ya pasada, sin fin registrado",
+    "climate_history_unavailable": "Historial climático de la parcela no disponible"
   },
   "effect": {
     "no_balance": "No se puede calcular la campaña",
@@ -206,9 +208,28 @@
     "irrigation_unknown": "sin riegos registrados ni declarados (se trata como secano)"
   },
   "baseline_incomplete": "Sin reducción calculable: falta el cambio de COS (del proyecto o de la línea base) en {{years}}",
+  "climate_band": "Rango entre años climáticos históricos (2,5–97,5 %)",
+  "climate_source_history": "Clima: histórico ERA5 {{years}} ({{n}} años)",
+  "climate_source_campaign": "Clima: el de la campaña {{year}}",
+  "climate_attribution_label": "Atribución",
+  "missing_detail": {
+    "climate_history": {
+      "reason": "El historial climático de la parcela aún se está preparando",
+      "effect": "La proyección usa el clima de la campaña de referencia"
+    },
+    "climate_history_unavailable": {
+      "reason": "El historial climático no está disponible para esta parcela",
+      "effect": "La proyección usa el clima de la campaña de referencia"
+    }
+  },
   "assumption": {
     "repeat_reference": "Se repiten cada año el clima y el manejo de {{year}}",
+    "climate_history": "Clima de {{from}}–{{to}} ({{n}} años, reanálisis ERA5), años remuestreados con reemplazo en 200 trayectorias",
+    "repeat_reference_management": "Se repite cada año el manejo de {{year}}",
     "no_baseline": "Sin línea base definida: solo se proyecta el manejo actual",
     "baseline_same_climate": "Línea base: manejo de {{year}} con el mismo clima"
-  }
+  },
+  "climate_band_baseline": "Rango de la línea base entre años climáticos históricos (2,5–97,5 %)",
+  "climate_band_note": "Variabilidad climática de los años pasados, con clima estacionario; no es un pronóstico; sin tendencia de cambio climático; no incluye incertidumbre del modelo ni de los datos de entrada",
+  "delta_range": "(2,5–97,5 %: {{lo}} – {{hi}})"
 }

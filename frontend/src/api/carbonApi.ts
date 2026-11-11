@@ -124,7 +124,20 @@ export interface ProjectionData {
   annual_delta_tC_ha_yr: number[];
   assumptions: string[];
   // Same assumptions as codes (+ params) for translation; absent from older backends.
-  assumption_codes?: Array<{ code: string; year?: number }>;
+  assumption_codes?: Array<{ code: string; year?: number; from?: number; to?: number; n?: number }>;
+  // 95 % climate interval around the median series; empty on the fallback path.
+  project_soc_p025?: number[];
+  project_soc_p975?: number[];
+  baseline_soc_p025?: number[];
+  baseline_soc_p975?: number[];
+  annual_delta_p025?: number[];
+  annual_delta_p975?: number[];
+  climate?: {
+    source: 'history' | 'reference_campaign';
+    years?: string;
+    n_years?: number;
+    attribution?: string | null;
+  };
   missing: MissingItem[];
 }
 

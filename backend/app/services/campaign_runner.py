@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from datetime import date, timedelta
 from typing import Any, Optional
 
@@ -21,16 +22,20 @@ from app.platform.eo_ndvi_client import fetch_vi_series
 from app.platform.errors import SourceUnavailable
 from app.platform.operations_client import fetch_operations, fetch_parcel_area_ha
 from app.platform.soil_client import fetch_soil_init
+from app.platform.weather_history_client import fetch_climate_history
 from app.services.campaign_balance import _UNCONFIRMED_END, ENGINE_VERSION, compute_campaign_balance, computed_through
 from app.services.campaign_types import (
     NO_DECLARED_MANAGEMENT, CampaignBalance, CampaignInputs, CycleSpan, DeclaredManagement, Missing,
     OperationsRead,
 )
 from app.services.campaign_reports import (
-    build_monitoring_report, combine_months, is_complete, months_from_row, project_soc,
+    MAX_SAMPLED_YEARS, N_TRAJ, build_monitoring_report, combine_months, is_complete, months_from_row, project_soc,
+    project_soc_ensemble, sample_sequences,
+    summarize,
 )
 from app.services.crop_params import WOODY_SPECIES, resolve_crop_params
-from app.services.roth_c_model import RothCState, run_months, weihermuller_pools
+from app.services.projection_climate import MIN_HISTORY_YEAR, WINDOW_YEARS, climate_years, usable
+from app.services.roth_c_model import RothCMonth, RothCState, run_months, weihermuller_pools
 
 logger = logging.getLogger(__name__)
 
@@ -361,7 +366,8 @@ async def projection(tenant_id: str, parcel_id: str, years: int = 20) -> dict:
     ref = next((r for r in reversed(rows) if _usable(r) and is_complete(r)), None)
     out = {"entity_id": short, "projection_years": years, "reference_year": None, "baseline_soc": [],
            "project_soc": [], "annual_delta_tC_ha_yr": [], "assumptions": [], "assumption_codes": [],
-           "missing": []}
+           "missing": [], "climate": {"source": "reference_campaign"}, "project_soc_p025": [], "project_soc_p975": [], "baseline_soc_p025": [],
+           "baseline_soc_p975": [], "annual_delta_p025": [], "annual_delta_p975": []}
 
     def assume(text: str, code: str, **params):
         # text for API readers; code + params for the UI to translate
@@ -379,20 +385,123 @@ async def projection(tenant_id: str, parcel_id: str, years: int = 20) -> dict:
         return out
     start, _ = stock_state(stock)
     clay, depth = float(ref["soil_clay_pct"]), float(ref["soil_depth_cm"])
-    climate = months_from_row(ref)
-    out["reference_year"] = ref["campaign_label"]
-    out["project_soc"] = project_soc(start, climate, clay, depth, years)
-    assume(f"climate and management of {ref['campaign_label']} repeated every year", "repeat_reference",
-           year=ref["campaign_label"])
+    ref_year = ref["campaign_label"]
+    ref_months = months_from_row(ref)
+    out["reference_year"] = ref_year
     b_year = await _baseline_year(tenant_id, short)
     b_row = next((r for r in rows if r["campaign_label"] == b_year and _usable(r) and is_complete(r)), None)
+
+    history, permanent = await _climate_trajectories(tenant_id, parcel_id, ref_year)
+    if history is None:
+        if permanent:
+            out["missing"].append({"item": "climate_history_unavailable",
+                                   "reason": "climate history unavailable for this parcel",
+                                   "effect": "projection uses the reference campaign's climate"})
+        else:
+            out["missing"].append({"item": "climate_history",
+                                   "reason": "parcel climate history not ready (being prepared)",
+                                   "effect": "projection uses the reference campaign's climate"})
+        out["climate"] = {"source": "reference_campaign"}
+        out["project_soc"] = project_soc(start, ref_months, clay, depth, years)
+        assume(f"climate and management of {ref_year} repeated every year", "repeat_reference", year=ref_year)
+        if b_row is None:
+            assume("no baseline defined: only the current management is projected", "no_baseline")
+        else:
+            out["baseline_soc"] = project_soc(start, combine_months(ref_months, months_from_row(b_row)),
+                                              clay, depth, years)
+            out["annual_delta_tC_ha_yr"] = [p - b for p, b in zip(out["project_soc"], out["baseline_soc"])]
+            assume(f"baseline: management of {b_year} under the same climate", "baseline_same_climate",
+                   year=b_year)
+        return out
+
+    climate, label, first, last, attribution = history
+    out["climate"] = {"source": "history", "years": label, "n_years": len(climate), "attribution": attribution}
+    # Same sampled climate sequences for project and baseline: deltas are paired per trajectory.
+    sequences = [seq[:years] for seq in sample_sequences(len(climate), N_TRAJ, max(years, MAX_SAMPLED_YEARS),
+                                                         f"{short}|{ref_year}|{first}|{last}")]
+    p_trajs = await asyncio.to_thread(project_soc_ensemble, start, climate, ref_months, clay, depth, years,
+                                      sequences)
+    out["project_soc"], out["project_soc_p025"], out["project_soc_p975"] = summarize(p_trajs)
+    assume(f"climate of {first}\u2013{last} ({len(climate)} years, ERA5 reanalysis) resampled into "
+           f"{N_TRAJ} trajectories", "climate_history", **{"from": first, "to": last, "n": len(climate)})
+    assume(f"management of {ref_year} repeated every year", "repeat_reference_management", year=ref_year)
     if b_row is None:
         assume("no baseline defined: only the current management is projected", "no_baseline")
     else:
-        out["baseline_soc"] = project_soc(start, combine_months(climate, months_from_row(b_row)), clay, depth, years)
-        out["annual_delta_tC_ha_yr"] = [p - b for p, b in zip(out["project_soc"], out["baseline_soc"])]
+        b_trajs = await asyncio.to_thread(project_soc_ensemble, start, climate, months_from_row(b_row), clay,
+                                          depth, years, sequences)
+        out["baseline_soc"], out["baseline_soc_p025"], out["baseline_soc_p975"] = summarize(b_trajs)
+        deltas = [[p - b for p, b in zip(pt, bt)] for pt, bt in zip(p_trajs, b_trajs)]
+        (out["annual_delta_tC_ha_yr"], out["annual_delta_p025"], out["annual_delta_p975"]) = summarize(deltas)
         assume(f"baseline: management of {b_year} under the same climate", "baseline_same_climate", year=b_year)
     return out
+
+
+# Derived monthly climate years per (tenant, parcel, first year, last year of the requested
+# window): only a ready, usable history is kept. Process-local; 24 h, at most 500 entries.
+CLIMATE_CACHE_TTL_S = 24 * 3600
+CLIMATE_CACHE_MAX = 500
+_CLIMATE_CACHE: "dict[tuple, tuple[float, object]]" = {}
+
+
+def _now() -> float:
+    return time.monotonic()
+
+
+def clear_climate_cache() -> None:
+    _CLIMATE_CACHE.clear()
+
+
+def _cache_get(key: tuple):
+    hit = _CLIMATE_CACHE.get(key)
+    if hit is None:
+        return None
+    if hit[0] <= _now():
+        _CLIMATE_CACHE.pop(key, None)
+        return None
+    return hit[1]
+
+
+def _cache_put(key: tuple, value: object) -> None:
+    _CLIMATE_CACHE.pop(key, None)
+    _CLIMATE_CACHE[key] = (_now() + CLIMATE_CACHE_TTL_S, value)
+    while len(_CLIMATE_CACHE) > CLIMATE_CACHE_MAX:
+        _CLIMATE_CACHE.pop(next(iter(_CLIMATE_CACHE)))   # oldest inserted
+
+
+async def _climate_trajectories(tenant_id: str, parcel_id: str, ref_year: int):
+    """(history, permanent): RothC climate years from the parcel history, or (None, permanent).
+
+    Window: the 30 calendar years ending with the reference campaign, not before 1991. If
+    weather-api answers 400 "end is after the latest available day", ONE retry ends on 31 Dec
+    of the year before. Only complete years count; with fewer than MIN_CLIMATE_YEARS the history
+    is not used at all (never mixed with the reference year). ``permanent`` is True when waiting
+    will not help (a 4xx, or too few complete years); a transient failure is False.
+    """
+    short = parcel_short(parcel_id)
+    end_year = ref_year
+    first_year = max(end_year - (WINDOW_YEARS - 1), MIN_HISTORY_YEAR)
+    key = (tenant_id, short, first_year, end_year)
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached, False
+    res = await fetch_climate_history(parcel_id, tenant_id, date(first_year, 1, 1), date(end_year, 12, 31))
+    if res.end_after_latest:
+        end_year = ref_year - 1
+        first_year = max(end_year - (WINDOW_YEARS - 1), MIN_HISTORY_YEAR)
+        res = await fetch_climate_history(parcel_id, tenant_id, date(first_year, 1, 1), date(end_year, 12, 31))
+    if not res.ready:
+        return None, bool(res.permanent)
+    years = climate_years(res.days, first_year, end_year)
+    if not usable(years):
+        logger.info("climate history unusable tenant=%s parcel=%s: %d complete years",
+                    tenant_id, parcel_id, len(years))
+        return None, True
+    ordered = sorted(years)
+    climate = [[RothCMonth(t, r, pe, False) for t, r, pe in years[y]] for y in ordered]
+    history = (climate, f"{ordered[0]}\u2013{ordered[-1]}", ordered[0], ordered[-1], res.attribution)
+    _cache_put(key, history)
+    return history, False
 
 
 async def monitoring_report(tenant_id: str, parcel_id: str, standard: str,

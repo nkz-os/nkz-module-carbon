@@ -29,7 +29,16 @@ class ProjectionResponse(BaseModel):
     project_soc: list[float] = []
     annual_delta_tC_ha_yr: list[float] = []
     assumptions: list[str] = []
+    assumption_codes: list[dict] = []
     missing: list[dict] = []
+    # 95 % interval across the climate trajectories (empty without the climate history)
+    project_soc_p025: list[float] = []
+    project_soc_p975: list[float] = []
+    baseline_soc_p025: list[float] = []
+    baseline_soc_p975: list[float] = []
+    annual_delta_p025: list[float] = []
+    annual_delta_p975: list[float] = []
+    climate: Optional[dict] = None
 
 
 # ---------------------------------------------------------------------------

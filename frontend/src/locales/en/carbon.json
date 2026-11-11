@@ -79,6 +79,7 @@
     "catch_crop": "Catch crop"
   },
   "missing": {
+    "climate_history": "Parcel climate history",
     "weather": "Incomplete daily weather",
     "ndvi": "NDVI scenes missing on crop days",
     "soil": "No soil data for the parcel",
@@ -99,7 +100,8 @@
     "cover_mismatch": "NDVI shows vegetation on days without a crop cycle",
     "osavi": "OSAVI scenes missing on woody-crop days: compute OSAVI in Vegetation",
     "cycle_lifecycle": "Lifecycle not recorded: perennial inferred from the species",
-    "cycle_end": "Planned end date has passed without a recorded end"
+    "cycle_end": "Planned end date has passed without a recorded end",
+    "climate_history_unavailable": "Parcel climate history unavailable"
   },
   "effect": {
     "no_balance": "The campaign cannot be computed",
@@ -206,9 +208,28 @@
     "irrigation_unknown": "no irrigation recorded or declared (treated as rainfed)"
   },
   "baseline_incomplete": "No reduction computable: SOC change missing (project or baseline) in {{years}}",
+  "climate_band": "Range across historical climate years (2.5–97.5 %)",
+  "climate_source_history": "Climate: ERA5 history {{years}} ({{n}} years)",
+  "climate_source_campaign": "Climate: that of the {{year}} campaign",
+  "climate_attribution_label": "Attribution",
+  "missing_detail": {
+    "climate_history": {
+      "reason": "The parcel climate history is not ready (being prepared)",
+      "effect": "The projection uses the reference campaign's climate"
+    },
+    "climate_history_unavailable": {
+      "reason": "Climate history is unavailable for this parcel",
+      "effect": "The projection uses the reference campaign's climate"
+    }
+  },
   "assumption": {
     "repeat_reference": "Climate and management of {{year}} repeated every year",
+    "climate_history": "Climate of {{from}}–{{to}} ({{n}} years, ERA5 reanalysis), years resampled with replacement into 200 trajectories",
+    "repeat_reference_management": "Management of {{year}} repeated every year",
     "no_baseline": "No baseline defined: only the current management is projected",
     "baseline_same_climate": "Baseline: management of {{year}} under the same climate"
-  }
+  },
+  "climate_band_baseline": "Baseline range across historical climate years (2.5–97.5 %)",
+  "climate_band_note": "Past year-to-year climate variability under a stationary climate; not a forecast; no climate-change trend; excludes model and input uncertainty",
+  "delta_range": "(2.5–97.5 %: {{lo}} – {{hi}})"
 }
