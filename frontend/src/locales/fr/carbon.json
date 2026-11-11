@@ -100,7 +100,8 @@
     "cover_mismatch": "Le NDVI voit de la végétation sur des jours sans cycle de culture",
     "osavi": "Scènes OSAVI manquantes sur des jours de culture ligneuse : calculez OSAVI dans Végétation",
     "cycle_lifecycle": "Cycle de vie non enregistré : pérenne déduit de l'espèce",
-    "cycle_end": "La date de fin prévue est passée sans fin enregistrée"
+    "cycle_end": "La date de fin prévue est passée sans fin enregistrée",
+    "climate_history_unavailable": "Historique climatique de la parcelle indisponible"
   },
   "effect": {
     "no_balance": "La campagne ne peut pas être calculée",
@@ -207,7 +208,7 @@
     "irrigation_unknown": "aucune irrigation enregistrée ni déclarée (traité en sec)"
   },
   "baseline_incomplete": "Réduction non calculable : variation de COS manquante (projet ou référence) en {{years}}",
-  "climate_band": "Intervalle climatique à 95 %",
+  "climate_band": "Plage entre années climatiques historiques (2,5–97,5 %)",
   "climate_source_history": "Climat : historique ERA5 {{years}} ({{n}} ans)",
   "climate_source_campaign": "Climat : celui de la campagne {{year}}",
   "climate_attribution_label": "Attribution",
@@ -215,13 +216,20 @@
     "climate_history": {
       "reason": "L'historique climatique de la parcelle est en préparation",
       "effect": "La projection utilise le climat de la campagne de référence"
+    },
+    "climate_history_unavailable": {
+      "reason": "L'historique climatique est indisponible pour cette parcelle",
+      "effect": "La projection utilise le climat de la campagne de référence"
     }
   },
   "assumption": {
     "repeat_reference": "Climat et conduite de {{year}} répétés chaque année",
-    "climate_history": "Climat de {{from}}–{{to}} ({{n}} ans, réanalyse ERA5) en {{n}} trajectoires",
+    "climate_history": "Climat de {{from}}–{{to}} ({{n}} ans, réanalyse ERA5), années rééchantillonnées avec remise en 200 trajectoires",
     "repeat_reference_management": "Conduite de {{year}} répétée chaque année",
     "no_baseline": "Aucune référence définie : seule la conduite actuelle est projetée",
     "baseline_same_climate": "Référence : conduite de {{year}} sous le même climat"
-  }
+  },
+  "climate_band_baseline": "Plage de la référence entre années climatiques historiques (2,5–97,5 %)",
+  "climate_band_note": "Variabilité climatique uniquement ; sans tendance de changement climatique ; hors incertitude du modèle et des données d'entrée",
+  "delta_range": "(2,5–97,5 % : {{lo}} – {{hi}})"
 }

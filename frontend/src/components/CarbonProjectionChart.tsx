@@ -89,6 +89,14 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
     ? data.annual_delta_tC_ha_yr[data.annual_delta_tC_ha_yr.length - 1]
     : 0;
 
+  const dLo = data.annual_delta_p025 ?? [];
+  const dHi = data.annual_delta_p975 ?? [];
+  const n = data.annual_delta_tC_ha_yr.length;
+  const deltaRange = n > 0 && dLo.length === n && dHi.length === n
+    ? { lo: dLo[n - 1], hi: dHi[n - 1] }
+    : null;
+  const fmtSigned = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(2)}`;
+
   const years = data.projection_years;
   const hasBaseline = data.baseline_soc.length > 0;
 
@@ -209,16 +217,27 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
               </text>
             </>
           )}
-          {bandProject && (
-            <>
-              <rect x={0} y={hasBaseline ? 28 : 12} width={16} height={8} fill={COLORS.project} fillOpacity={0.2} />
-              <text x={20} y={hasBaseline ? 36 : 20} fontSize={11} fill={COLORS.annotation}>
-                {t('climate_band')}
-              </text>
-            </>
-          )}
         </g>
       </svg>
+
+      {/* Band legend: what the shaded range is (outside the SVG: the labels are long) */}
+      {(bandProject || bandBaseline) && (
+        <div style={{ marginTop: '6px', fontSize: '11px', color: COLORS.annotation, display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          {bandProject && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: 16, height: 8, flexShrink: 0, backgroundColor: COLORS.project, opacity: 0.35 }} />
+              {t('climate_band')}
+            </div>
+          )}
+          {bandBaseline && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: 16, height: 8, flexShrink: 0, backgroundColor: COLORS.baseline, opacity: 0.35 }} />
+              {t('climate_band_baseline')}
+            </div>
+          )}
+          <div style={{ color: COLORS.axis }}>{t('climate_band_note')}</div>
+        </div>
+      )}
 
       {/* Delta annotation */}
       {finalDelta !== 0 && (
@@ -238,6 +257,12 @@ const CarbonProjectionChart: React.FC<CarbonProjectionChartProps> = ({ data }) =
             {finalDelta > 0 ? '+' : ''}
             {finalDelta.toFixed(2)} {t('units.tC_ha')}
           </strong>
+          {deltaRange && (
+            <>
+              {' '}
+              {t('delta_range', { lo: fmtSigned(deltaRange.lo), hi: fmtSigned(deltaRange.hi) })}
+            </>
+          )}
         </div>
       )}
     </div>

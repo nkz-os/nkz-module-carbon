@@ -22,6 +22,10 @@ function useEntityId(props: CarbonBottomPanelProps): string {
   return props.entityId || params.entityId || '';
 }
 
+// Legal text, shown verbatim in English (not translated). Used only if the backend omitted it.
+const HISTORY_ATTRIBUTION_FALLBACK =
+  'Contains modified Copernicus Climate Change Service information; Open-Meteo (CC BY 4.0)';
+
 type TabKey = 'overview' | 'data' | 'soil' | 'projection' | 'management' | 'export';
 
 const TAB_KEYS: TabKey[] = ['overview', 'data', 'soil', 'projection', 'management', 'export'];
@@ -47,6 +51,7 @@ const CarbonBottomPanel: React.FC<CarbonBottomPanelProps> = (props) => {
   const [error, setError] = useState<string | null>(null);
   const [calculating, setCalculating] = useState(false);
 
+  // Campaigns and the selected year's row.
   const loadData = useCallback(async () => {
     if (!entityId) {
       setLoading(false);
@@ -55,12 +60,8 @@ const CarbonBottomPanel: React.FC<CarbonBottomPanelProps> = (props) => {
     setLoading(true);
     setError(null);
     try {
-      const [list, proj] = await Promise.all([
-        fetchCampaigns(entityId),
-        fetchProjection(entityId).catch(() => null),
-      ]);
+      const list = await fetchCampaigns(entityId);
       setCampaigns(list.campaigns);
-      setProjection(proj);
       const stored = list.campaigns.find((c) => c.campaign_label === year);
       setRow(stored ? await fetchCampaign(entityId, year) : null);
     } catch {
@@ -74,24 +75,32 @@ const CarbonBottomPanel: React.FC<CarbonBottomPanelProps> = (props) => {
     loadData();
   }, [loadData]);
 
+  // The projection does not depend on the selected year and can take seconds: it loads on its own
+  // (never blocking the campaign data) and is not refetched when the year changes.
+  const loadProjection = useCallback(async () => {
+    if (!entityId) return;
+    setProjection(await fetchProjection(entityId).catch(() => null));
+  }, [entityId]);
+
+  useEffect(() => {
+    loadProjection();
+  }, [loadProjection]);
+
   const handleCalculate = useCallback(async () => {
     if (!entityId) return;
     setCalculating(true);
     setError(null);
     try {
       setRow(await calculateCampaign(entityId, year));
-      const [list, proj] = await Promise.all([
-        fetchCampaigns(entityId),
-        fetchProjection(entityId).catch(() => null),
-      ]);
+      const list = await fetchCampaigns(entityId);
       setCampaigns(list.campaigns);
-      setProjection(proj);
+      void loadProjection();
     } catch {
       setError(t('error_loading'));
     } finally {
       setCalculating(false);
     }
-  }, [entityId, year, t]);
+  }, [entityId, year, t, loadProjection]);
 
   const yearOptions = useMemo(() => {
     const years = new Set<number>([currentYear(), ...campaigns.map((c) => c.campaign_label)]);
@@ -373,9 +382,9 @@ function ProjectionTab({ projection, t }: { projection: ProjectionData | null; t
         </div>
       )}
       {projection.missing.length > 0 && <CarbonMissingList missing={projection.missing} />}
-      {projection.climate?.source === 'history' && projection.climate.attribution && (
+      {projection.climate?.source === 'history' && (
         <div style={{ fontSize: '11px', color: colors.textMuted }}>
-          {t('climate_attribution_label')}: {projection.climate.attribution}
+          {t('climate_attribution_label')}: {projection.climate.attribution || HISTORY_ATTRIBUTION_FALLBACK}
         </div>
       )}
     </div>
