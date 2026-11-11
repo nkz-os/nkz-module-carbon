@@ -103,7 +103,6 @@
     "cycle_end": "La date de fin prévue est passée sans fin enregistrée"
   },
   "effect": {
-    "projection uses the reference campaign's climate": "La projection utilise le climat de la campagne de référence",
     "no_balance": "La campagne ne peut pas être calculée",
     "tier1_partial": "Production végétale calculée en partie seulement",
     "tier1_unavailable": "Pas de production végétale pour cette culture",
@@ -211,7 +210,13 @@
   "climate_band": "Intervalle climatique à 95 %",
   "climate_source_history": "Climat : historique ERA5 {{years}} ({{n}} ans)",
   "climate_source_campaign": "Climat : celui de la campagne {{year}}",
-  "climate_attribution": "Contient des informations du service Copernicus sur le changement climatique (réanalyse ERA5). Generated using Copernicus Climate Change Service information.",
+  "climate_attribution_label": "Attribution",
+  "missing_detail": {
+    "climate_history": {
+      "reason": "L'historique climatique de la parcelle est en préparation",
+      "effect": "La projection utilise le climat de la campagne de référence"
+    }
+  },
   "assumption": {
     "repeat_reference": "Climat et conduite de {{year}} répétés chaque année",
     "climate_history": "Climat de {{from}}–{{to}} ({{n}} ans, réanalyse ERA5) en {{n}} trajectoires",

@@ -103,7 +103,6 @@
     "cycle_end": "La data de fi planificada ja ha passat sense fi registrada"
   },
   "effect": {
-    "projection uses the reference campaign's climate": "La projecció usa el clima de la campanya de referència",
     "no_balance": "No es pot calcular la campanya",
     "tier1_partial": "Producció vegetal calculada només en part",
     "tier1_unavailable": "Sense producció vegetal per a aquest cultiu",
@@ -211,7 +210,13 @@
   "climate_band": "Interval climàtic del 95 %",
   "climate_source_history": "Clima: històric ERA5 {{years}} ({{n}} anys)",
   "climate_source_campaign": "Clima: el de la campanya {{year}}",
-  "climate_attribution": "Conté informació del servei de canvi climàtic de Copernicus (reanàlisi ERA5). Generated using Copernicus Climate Change Service information.",
+  "climate_attribution_label": "Atribució",
+  "missing_detail": {
+    "climate_history": {
+      "reason": "L'historial climàtic de la parcel·la encara s'està preparant",
+      "effect": "La projecció usa el clima de la campanya de referència"
+    }
+  },
   "assumption": {
     "repeat_reference": "Es repeteixen cada any el clima i el maneig de {{year}}",
     "climate_history": "Clima de {{from}}–{{to}} ({{n}} anys, reanàlisi ERA5) com a {{n}} trajectòries",

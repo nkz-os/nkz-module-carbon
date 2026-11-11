@@ -373,9 +373,9 @@ function ProjectionTab({ projection, t }: { projection: ProjectionData | null; t
         </div>
       )}
       {projection.missing.length > 0 && <CarbonMissingList missing={projection.missing} />}
-      {projection.climate?.source === 'history' && (
+      {projection.climate?.source === 'history' && projection.climate.attribution && (
         <div style={{ fontSize: '11px', color: colors.textMuted }}>
-          {t('climate_attribution')}
+          {t('climate_attribution_label')}: {projection.climate.attribution}
         </div>
       )}
     </div>

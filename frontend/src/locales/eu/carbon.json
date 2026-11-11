@@ -103,7 +103,6 @@
     "cycle_end": "Planifikatutako amaiera-data igaro da, amaierarik erregistratu gabe"
   },
   "effect": {
-    "projection uses the reference campaign's climate": "Proiekzioak erreferentziako kanpainaren klima erabiltzen du",
     "no_balance": "Ezin da kanpaina kalkulatu",
     "tier1_partial": "Landare-ekoizpena zati batean bakarrik kalkulatuta",
     "tier1_unavailable": "Labore horrentzat ez dago landare-ekoizpenik",
@@ -211,7 +210,13 @@
   "climate_band": "% 95eko klima-tartea",
   "climate_source_history": "Klima: ERA5 historikoa {{years}} ({{n}} urte)",
   "climate_source_campaign": "Klima: {{year}} kanpainakoa",
-  "climate_attribution": "Copernicus Klima Aldaketaren Zerbitzuaren informazioa du (ERA5 berranalisia). Generated using Copernicus Climate Change Service information.",
+  "climate_attribution_label": "Aitortza",
+  "missing_detail": {
+    "climate_history": {
+      "reason": "Lursailaren klima-historia oraindik prestatzen ari da",
+      "effect": "Proiekzioak erreferentziako kanpainaren klima erabiltzen du"
+    }
+  },
   "assumption": {
     "repeat_reference": "{{year}} urteko klima eta maneiua urtero errepikatzen dira",
     "climate_history": "{{from}}–{{to}} bitarteko klima ({{n}} urte, ERA5 berranalisia) {{n}} ibilbide gisa",

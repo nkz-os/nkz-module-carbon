@@ -32,7 +32,7 @@ const CarbonMissingList: React.FC<CarbonMissingListProps> = ({ missing, maxItems
             {t(`missing.${m.item}`, { defaultValue: m.item })}
           </div>
           <div style={{ fontSize: '11px', color: colors.textSecondary }}>
-            {t(`effect.${m.effect}`, { defaultValue: m.effect })}
+            {t(`effect.${m.effect}`, { defaultValue: t(`missing_detail.${m.item}.effect`, { defaultValue: m.effect }) })}
           </div>
         </div>
       ))}
