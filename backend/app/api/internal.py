@@ -155,7 +155,10 @@ async def setup_parcel(
     urn = canonical_parcel_urn(parcel_id)
     # Only activation computes; deactivating or deleting the parcel keeps its campaigns.
     if action != "activate":
-        background_tasks.add_task(release_continuous, tenant_id, urn)
+        # Deactivation keeps continuity: the daily sweep still processes the parcel, so a
+        # release would flap. Only teardown (parcel deleted, never swept again) releases.
+        if action == "teardown":
+            background_tasks.add_task(release_continuous, tenant_id, urn)
         return {"status": action, "parcel_id": parcel_id, "tenant_id": tenant_id}
 
     async def _run():

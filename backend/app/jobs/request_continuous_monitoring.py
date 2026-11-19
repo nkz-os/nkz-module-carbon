@@ -17,6 +17,13 @@ from app.platform.vegetation_client import request_continuous
 logger = logging.getLogger(__name__)
 
 _PAGE = 100
+# The relationship arrives short, legacy, or as a full IRI depending on the broker's context.
+_PARCEL_KEYS = (
+    "hasAgriParcel",
+    "refAgriParcel",
+    "https://nkz-os.org/ns/hasAgriParcel",
+    "https://uri.etsi.org/ngsi-ld/default-context/hasAgriParcel",
+)
 
 
 async def list_carbon_parcels(tenant_id: str) -> list[str]:
@@ -27,7 +34,7 @@ async def list_carbon_parcels(tenant_id: str) -> list[str]:
         page = await get_orion_client().query_entities(
             entity_type="CarbonAssessment", tenant_id=tenant_id, limit=_PAGE, offset=offset)
         for entity in page or []:
-            rel = entity.get("hasAgriParcel")
+            rel = next((entity[k] for k in _PARCEL_KEYS if k in entity), None)
             target = rel.get("object", rel.get("value")) if isinstance(rel, dict) else rel
             if target:
                 parcels.add(str(target))

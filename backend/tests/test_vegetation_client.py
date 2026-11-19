@@ -108,16 +108,34 @@ def test_activate_requests_continuous_then_runs_campaign(client, monkeypatch):
     assert order == ["request", "run"]
 
 
-@pytest.mark.parametrize("action", ["deactivate", "teardown"])
-def test_deactivate_and_teardown_release(client, monkeypatch, action):
+def test_teardown_releases_and_deactivate_does_not(client, monkeypatch):
     rel = AsyncMock()
     run = AsyncMock()
     monkeypatch.setattr(internal, "release_continuous", rel)
     monkeypatch.setattr(internal, "run_campaign", run)
-    r = _setup(client, action)
-    assert r.status_code == 200 and r.json()["status"] == action
+    r = _setup(client, "deactivate")
+    assert r.status_code == 200 and r.json()["status"] == "deactivate"
+    rel.assert_not_awaited()
+    r = _setup(client, "teardown")
+    assert r.status_code == 200 and r.json()["status"] == "teardown"
     rel.assert_awaited_once_with("acme", URN)
     run.assert_not_awaited()
+
+
+def test_campaign_runs_even_when_the_request_fails(client, monkeypatch):
+    run = AsyncMock()
+    monkeypatch.setattr(internal, "request_continuous", AsyncMock(return_value=False))
+    monkeypatch.setattr(internal, "run_campaign", run)
+    assert _setup(client, "activate").json()["scheduled"] is True  # TestClient runs the background task
+    run.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [401, 422])
+async def test_rejections_are_false_and_warn(status, caplog):
+    with caplog.at_level(logging.WARNING):
+        assert await veg.request_continuous("acme", URN, client=_client(lambda r: httpx.Response(status))) is False
+    assert "acme" in caplog.text
 
 
 def test_vegetation_down_does_not_change_setup_response(client, monkeypatch):
@@ -127,17 +145,69 @@ def test_vegetation_down_does_not_change_setup_response(client, monkeypatch):
     assert _setup(client, "deactivate").json()["status"] == "deactivate"
 
 
-def test_recalculate_open_requests_continuous_even_if_campaign_fails(client, monkeypatch):
+def test_recalculate_open_requests_continuity_after_the_sweep(client, monkeypatch):
+    order = []
     monkeypatch.setattr(api, "INTERNAL_SERVICE_SECRET", "s3")
     monkeypatch.setattr(api, "list_tenants_with_module", AsyncMock(return_value=["acme"]))
     monkeypatch.setattr(api, "list_parcel_ids", AsyncMock(return_value=["p1", "p2"]))
-    monkeypatch.setattr(api, "run_campaign", AsyncMock(side_effect=RuntimeError("x")))
-    req = AsyncMock()
-    monkeypatch.setattr(api, "request_continuous", req)
+
+    async def run(*a, **k):
+        order.append("run")
+        raise RuntimeError("x")
+
+    async def batch(pairs, **k):
+        order.append("batch")
+        order.append(sorted(pairs))
+
+    monkeypatch.setattr(api, "run_campaign", run)
+    monkeypatch.setattr(api, "request_continuous_batch", batch)
     r = client.post("/api/carbon/internal/campaigns/recalculate-open", headers={"X-Internal-Service-Secret": "s3"})
     assert r.status_code == 200 and r.json()["failed"] == 2
-    assert sorted(c.args for c in req.await_args_list) == [
-        ("acme", canonical_parcel_urn("p1")), ("acme", canonical_parcel_urn("p2"))]
+    assert order == ["run", "run", "batch", [("acme", canonical_parcel_urn("p1")), ("acme", canonical_parcel_urn("p2"))]]
+
+
+@pytest.mark.asyncio
+async def test_batch_circuit_breaker_stops_after_first_transport_error(caplog):
+    calls = []
+
+    def down(req):
+        calls.append(req)
+        raise httpx.ConnectTimeout("slow")
+
+    pairs = [("acme", f"urn:ngsi-ld:AgriParcel:p{i}") for i in range(30)]
+    with caplog.at_level(logging.WARNING):
+        done = await veg.request_continuous_batch(pairs, concurrency=5, client=_client(down))
+    assert len(calls) <= 5 and done == 0
+    assert caplog.text.count("circuit open") == 1 and "acme" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_batch_counts_successes_and_empty_url_skips(monkeypatch):
+    pairs = [("acme", f"urn:ngsi-ld:AgriParcel:p{i}") for i in range(7)]
+    assert await veg.request_continuous_batch(pairs, client=_client(lambda r: httpx.Response(204))) == 7
+    monkeypatch.setenv("VEGETATION_INTERNAL_URL", "")
+    assert await veg.request_continuous_batch(pairs, client=_client(lambda r: httpx.Response(204))) == 0
+
+
+@pytest.mark.asyncio
+async def test_list_carbon_parcels_reads_every_key_form(monkeypatch):
+    def e(key, form, urn):
+        return {"id": "x", "type": "CarbonAssessment", key: {"type": "Relationship", form: urn}}
+
+    page1 = [e("hasAgriParcel", "object", "urn:ngsi-ld:AgriParcel:a")] * 50 + [
+        e("refAgriParcel", "object", "urn:ngsi-ld:AgriParcel:b")] * 50
+    page2 = [
+        e("https://nkz-os.org/ns/hasAgriParcel", "value", "urn:ngsi-ld:AgriParcel:c"),
+        e("https://uri.etsi.org/ngsi-ld/default-context/hasAgriParcel", "object", "urn:ngsi-ld:AgriParcel:a"),
+        {"id": "y", "hasAgriParcel": "urn:ngsi-ld:AgriParcel:d"},
+        {"id": "z"},
+    ]
+    orion = type("O", (), {})()
+    orion.query_entities = AsyncMock(side_effect=[page1, page2])
+    monkeypatch.setattr(job, "get_orion_client", lambda: orion)
+    assert await job.list_carbon_parcels("acme") == [
+        "urn:ngsi-ld:AgriParcel:a", "urn:ngsi-ld:AgriParcel:b",
+        "urn:ngsi-ld:AgriParcel:c", "urn:ngsi-ld:AgriParcel:d"]
 
 
 @pytest.mark.asyncio
