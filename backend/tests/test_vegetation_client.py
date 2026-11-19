@@ -229,3 +229,28 @@ async def test_cli_apply_calls_and_prints_result(monkeypatch, capsys):
     assert await job.run(["--tenant", "acme", "--apply"]) == 0
     req.assert_awaited_once_with("acme", URN)
     assert capsys.readouterr().out.split() == ["acme", URN, "ok"]
+
+
+@pytest.mark.asyncio
+async def test_cli_main_initializes_and_closes_the_orion_client(monkeypatch):
+    """Run outside the API, the one-off command must set up the Orion client itself."""
+    from app.jobs import request_continuous_monitoring as cli
+
+    calls = []
+    monkeypatch.setattr(cli, "init_orion_client", lambda: calls.append("init"))
+
+    async def fake_close_orion():
+        calls.append("close_orion")
+
+    async def fake_close_pool():
+        calls.append("close_pool")
+
+    async def fake_run(argv=None):
+        assert calls == ["init"]
+        return 0
+
+    monkeypatch.setattr(cli, "close_orion_client", fake_close_orion)
+    monkeypatch.setattr(cli, "close_pool", fake_close_pool)
+    monkeypatch.setattr(cli, "run", fake_run)
+    assert await cli._main() == 0
+    assert calls == ["init", "close_orion", "close_pool"]
