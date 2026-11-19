@@ -31,6 +31,8 @@ from pydantic import BaseModel
 from typing import List
 
 from app.common.orion import get_orion_client
+from app.platform.crop_client import canonical_parcel_urn
+from app.platform.vegetation_client import release_continuous, request_continuous
 from app.services.campaign_runner import run_campaign
 
 logger = logging.getLogger(__name__)
@@ -150,11 +152,18 @@ async def setup_parcel(
     action = body.get("action") or "activate"
     if action not in ("activate", "deactivate", "teardown"):
         raise HTTPException(status_code=400, detail="Invalid action")
+    urn = canonical_parcel_urn(parcel_id)
     # Only activation computes; deactivating or deleting the parcel keeps its campaigns.
     if action != "activate":
+        # Deactivation keeps continuity: the daily sweep still processes the parcel, so a
+        # release would flap. Only teardown (parcel deleted, never swept again) releases.
+        if action == "teardown":
+            background_tasks.add_task(release_continuous, tenant_id, urn)
         return {"status": action, "parcel_id": parcel_id, "tenant_id": tenant_id}
 
     async def _run():
+        # The client never raises; the request goes first, the campaign may take long.
+        await request_continuous(tenant_id, urn)
         try:
             await run_campaign(tenant_id, parcel_id, date.today().year)
         except Exception as exc:  # noqa: BLE001 — the daily job retries

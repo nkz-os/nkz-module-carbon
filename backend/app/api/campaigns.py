@@ -20,6 +20,7 @@ from app.common.tier_check import check_tier
 from app.db.database import list_tenants_with_module
 from app.platform.crop_client import canonical_parcel_urn
 from app.platform.errors import SourceUnavailable
+from app.platform.vegetation_client import request_continuous_batch
 from app.ngsild.campaign_entities import stock_state
 from app.services.campaign_runner import (
     ParcelNotFound, get_campaign, get_campaign_stock, list_campaigns, run_campaign,
@@ -121,6 +122,7 @@ async def recalculate_open(x_internal_service_secret: str = Header(default="", a
                 counts["failed"] += 1
                 logger.warning("carbon recalc failed tenant=%s parcel=%s: %s", tenant_id, parcel_id, exc)
 
+    pairs: list[tuple[str, str]] = []
     for tenant_id in tenants:
         try:
             parcels = await list_parcel_ids(tenant_id)
@@ -128,6 +130,9 @@ async def recalculate_open(x_internal_service_secret: str = Header(default="", a
             logger.warning("carbon recalc: parcels unavailable tenant=%s: %s", tenant_id, exc)
             continue
         counts["parcels"] += len(parcels)
+        pairs.extend((tenant_id, canonical_parcel_urn(p)) for p in parcels)
         await asyncio.gather(*(one(tenant_id, p) for p in parcels))
+    # Self-healing and decoupled: after the campaigns, so vegetation can never delay them.
+    await request_continuous_batch(pairs)
     logger.info("carbon recalc done %s", counts)
     return counts
