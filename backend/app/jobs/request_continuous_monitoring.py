@@ -10,7 +10,7 @@ import asyncio
 import logging
 import sys
 
-from app.common.orion import get_orion_client
+from app.common.orion import close_orion_client, get_orion_client, init_orion_client
 from app.db.database import close_pool, list_tenants_with_module
 from app.platform.vegetation_client import request_continuous
 
@@ -68,9 +68,12 @@ async def run(argv: list[str] | None = None) -> int:
 
 
 async def _main() -> int:
+    # Outside the API there is no lifespan: set up the Orion client here.
+    init_orion_client()
     try:
         return await run()
     finally:
+        await close_orion_client()
         await close_pool()
 
 
