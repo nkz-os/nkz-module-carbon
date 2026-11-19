@@ -20,6 +20,7 @@ from app.common.tier_check import check_tier
 from app.db.database import list_tenants_with_module
 from app.platform.crop_client import canonical_parcel_urn
 from app.platform.errors import SourceUnavailable
+from app.platform.vegetation_client import request_continuous
 from app.ngsild.campaign_entities import stock_state
 from app.services.campaign_runner import (
     ParcelNotFound, get_campaign, get_campaign_stock, list_campaigns, run_campaign,
@@ -114,6 +115,8 @@ async def recalculate_open(x_internal_service_secret: str = Header(default="", a
 
     async def one(tenant_id: str, parcel_id: str):
         async with sem:
+            # Self-healing: re-ask every day, so a failed request is repaired by the next sweep.
+            await request_continuous(tenant_id, canonical_parcel_urn(parcel_id))
             try:
                 await run_campaign(tenant_id, parcel_id, year, cascade=False)
                 counts["ok"] += 1
