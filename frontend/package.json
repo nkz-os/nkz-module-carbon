@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@nekazari/ui-kit": "^1.0.0",
-    "react-router-dom": "^6.26.0"
+    "react-router-dom": "^6.30.6"
   },
   "peerDependencies": {
     "react": "^18.3.1",
